@@ -55,12 +55,18 @@ impl StringReader {
         self.can_read_length(1)
     }
 
+    /// The next character, without consuming it.
+    ///
+    /// `cursor` is a byte offset, so this reads forward from it rather than
+    /// treating it as a character index.
     pub fn peek(&self) -> char {
-        self.string.chars().nth(self.cursor).unwrap()
+        self.remaining().chars().next().unwrap()
     }
 
+    /// The character `offset` characters past the cursor, without consuming
+    /// anything.
     pub fn peek_offset(&self, offset: usize) -> char {
-        self.string.chars().nth(self.cursor + offset).unwrap()
+        self.remaining().chars().nth(offset).unwrap()
     }
 
     pub fn cursor(&self) -> usize {
@@ -69,12 +75,14 @@ impl StringReader {
 
     pub fn read(&mut self) -> char {
         let c = self.peek();
-        self.cursor += 1;
+        // Advance by the character's encoded width, not by 1, or the cursor
+        // lands mid-character on anything outside ASCII and later slices panic.
+        self.cursor += c.len_utf8();
         c
     }
 
     pub fn skip(&mut self) {
-        self.cursor += 1;
+        self.cursor += self.peek().len_utf8();
     }
 
     pub fn is_allowed_number(c: char) -> bool {
@@ -215,7 +223,8 @@ impl StringReader {
                     result.push(c);
                     escaped = false;
                 } else {
-                    self.cursor -= 1;
+                    // Undo the read() above; `c` may be wider than one byte.
+                    self.cursor -= c.len_utf8();
                     return Err(BuiltInError::ReaderInvalidEscape { character: c }
                         .create_with_context(self));
                 }

@@ -610,3 +610,60 @@ fn read_boolean_none() {
         assert_eq!(e.cursor(), Some(0));
     }
 }
+
+// The cursor is a byte offset. These cover input where byte and character
+// offsets diverge, which previously desynchronised the two and panicked.
+
+#[test]
+fn read_advances_by_encoded_width() {
+    let mut reader = StringReader::from("héllo".to_owned());
+    assert_eq!(reader.read(), 'h');
+    assert_eq!(reader.cursor(), 1);
+    assert_eq!(reader.read(), 'é'); // two bytes
+    assert_eq!(reader.cursor(), 3);
+    assert_eq!(reader.remaining(), "llo");
+}
+
+#[test]
+fn skip_advances_by_encoded_width() {
+    let mut reader = StringReader::from("你好".to_owned());
+    reader.skip();
+    assert_eq!(reader.cursor(), 3);
+    assert_eq!(reader.peek(), '好');
+    reader.skip();
+    assert_eq!(reader.cursor(), 6);
+    assert!(!reader.can_read());
+}
+
+#[test]
+fn peek_offset_counts_characters() {
+    let reader = StringReader::from("你好世界".to_owned());
+    assert_eq!(reader.peek_offset(0), '你');
+    assert_eq!(reader.peek_offset(2), '世');
+}
+
+#[test]
+fn reads_non_ascii_unquoted_string() {
+    // Unquoted strings are ASCII-only by design, so this reads nothing. The
+    // point is that it stops cleanly instead of desynchronising the cursor.
+    let mut reader = StringReader::from("你好 世界".to_owned());
+    assert_eq!(reader.read_unquoted_string(), "");
+    assert_eq!(reader.cursor(), 0);
+    assert_eq!(reader.remaining(), "你好 世界");
+}
+
+#[test]
+fn reads_non_ascii_quoted_string() {
+    let mut reader = StringReader::from("\"你好 世界\"".to_owned());
+    assert_eq!(reader.read_string().unwrap(), "你好 世界");
+    assert!(!reader.can_read());
+}
+
+#[test]
+fn reads_astral_plane_characters() {
+    let mut reader = StringReader::from("🎮🎲".to_owned());
+    assert_eq!(reader.read(), '🎮'); // four bytes
+    assert_eq!(reader.cursor(), 4);
+    assert_eq!(reader.read(), '🎲');
+    assert!(!reader.can_read());
+}

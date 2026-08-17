@@ -97,16 +97,13 @@ impl<S, R> CommandNode<S, R> {
             while input.can_read() && input.peek() != ' ' {
                 input.skip();
             }
-            let text: String = input
-                .string()
-                .chars()
-                .skip(cursor)
-                .take(input.cursor() - cursor)
-                .collect();
+            // `cursor` is a byte offset, so slice by bytes rather than stepping
+            // a character iterator with it.
+            let text = &input.string()[cursor..input.cursor()];
+            let literal = literals.get(text).cloned();
             input.cursor = cursor;
-            let literal = literals.get(&text);
             if let Some(literal) = literal {
-                vec![literal.clone()]
+                vec![literal]
             } else {
                 self.arguments.values().cloned().collect()
             }
