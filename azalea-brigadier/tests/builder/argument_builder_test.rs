@@ -19,6 +19,28 @@ fn test_arguments() {
     );
 }
 
+/// `describe` is just another builder setter, so it has to survive the same
+/// clone-then-build path as `executes` and friends.
+#[test]
+fn test_describe() {
+    let builder: ArgumentBuilder<()> = literal("foo").describe("does the foo thing");
+
+    assert_eq!(
+        builder.clone().build().description.as_deref(),
+        Some("does the foo thing")
+    );
+    // Last word wins, like every other setter here.
+    assert_eq!(
+        builder
+            .describe("does something else")
+            .build()
+            .description
+            .as_deref(),
+        Some("does something else")
+    );
+    assert_eq!(literal::<(), i32>("bar").build().description, None);
+}
+
 //     @Test
 //     public void testRedirect() throws Exception {
 //         final CommandNode<Object> target = mock(CommandNode.class);

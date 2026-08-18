@@ -33,6 +33,7 @@ impl<S, R> Clone for ArgumentBuilderType<S, R> {
 pub struct ArgumentBuilder<S, R = i32> {
     arguments: CommandNode<S, R>,
 
+    description: Option<String>,
     command: Command<S, R>,
     requirement: Arc<dyn Fn(&S) -> bool + Send + Sync>,
     target: Option<Arc<RwLock<CommandNode<S, R>>>>,
@@ -49,6 +50,7 @@ impl<S, R> ArgumentBuilder<S, R> {
                 value,
                 ..Default::default()
             },
+            description: None,
             command: None,
             requirement: Arc::new(|_| true),
             forks: false,
@@ -103,6 +105,27 @@ impl<S, R> ArgumentBuilder<S, R> {
         F: Fn(&CommandContext<S, R>) -> Result<R, CommandSyntaxError> + Send + Sync + 'static,
     {
         self.command = Some(Arc::new(f));
+        self
+    }
+
+    /// Say what this node does, in a few words.
+    ///
+    /// The description rides along with the suggestion that completes this
+    /// node, as its tooltip, so a completion menu can explain each candidate
+    /// without keeping a second table keyed by name — and two nodes sharing a
+    /// name (`proxy on` and `log on`) still get to say different things.
+    ///
+    /// ```
+    /// # use azalea_brigadier::prelude::*;
+    /// # let mut subject = CommandDispatcher::<()>::new();
+    /// # subject.register(
+    /// literal("foo")
+    ///     .describe("does the foo thing")
+    ///     .executes(|ctx: &CommandContext<()>| 42)
+    /// # );
+    /// ```
+    pub fn describe(mut self, description: &str) -> Self {
+        self.description = Some(description.to_owned());
         self
     }
 
@@ -167,6 +190,7 @@ impl<S, R> ArgumentBuilder<S, R> {
     pub fn build(self) -> CommandNode<S, R> {
         let mut result = CommandNode {
             value: self.arguments.value,
+            description: self.description,
             command: self.command,
             requirement: self.requirement,
             redirect: self.target,
@@ -201,6 +225,7 @@ impl<S, R> Clone for ArgumentBuilder<S, R> {
     fn clone(&self) -> Self {
         Self {
             arguments: self.arguments.clone(),
+            description: self.description.clone(),
             command: self.command.clone(),
             requirement: self.requirement.clone(),
             target: self.target.clone(),

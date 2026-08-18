@@ -27,6 +27,20 @@ pub type Command<S, R> =
 #[non_exhaustive]
 pub struct CommandNode<S, R = i32> {
     pub value: ArgumentBuilderType<S, R>,
+    /// What this node does, in a few words, for a completion menu to show
+    /// alongside the candidate that completes it.
+    ///
+    /// Literal nodes have nowhere else to carry one: their suggestions are
+    /// built from the literal text alone, so without this every literal
+    /// suggestion arrives with `tooltip: None`. Argument nodes hand the
+    /// tooltip out through their [`SuggestionProvider`] instead, and this
+    /// describes the argument itself rather than any one of its values.
+    ///
+    /// Set it with [`ArgumentBuilder::describe`].
+    ///
+    /// [`SuggestionProvider`]: crate::suggestion::SuggestionProvider
+    /// [`ArgumentBuilder::describe`]: crate::builder::argument_builder::ArgumentBuilder::describe
+    pub description: Option<String>,
 
     // this is a BTreeMap because children need to be ordered when getting command suggestions
     pub children: BTreeMap<String, Arc<RwLock<CommandNode<S, R>>>>,
@@ -44,6 +58,7 @@ impl<S, R> Clone for CommandNode<S, R> {
     fn clone(&self) -> Self {
         Self {
             value: self.value.clone(),
+            description: self.description.clone(),
             children: self.children.clone(),
             literals: self.literals.clone(),
             arguments: self.arguments.clone(),
@@ -120,6 +135,13 @@ impl<S, R> CommandNode<S, R> {
             // We've found something to merge onto
             if let Some(command) = &node.read().command {
                 child.write().command = Some(command.clone());
+            }
+            // Same rule as the command above: the incoming node wins, but only
+            // where it actually says something. Registering `foo bar` and then
+            // `foo baz` mustn't wipe the description `foo` was given the first
+            // time round.
+            if let Some(description) = &node.read().description {
+                child.write().description = Some(description.clone());
             }
             for grandchild in node.read().children.values() {
                 child.write().add_child(grandchild);
@@ -235,7 +257,12 @@ impl<S, R> CommandNode<S, R> {
                     .to_lowercase()
                     .starts_with(builder.remaining_lowercase())
                 {
-                    builder.suggest(&literal.value).build()
+                    match &self.description {
+                        Some(description) => builder
+                            .suggest_with_tooltip(&literal.value, description.clone())
+                            .build(),
+                        None => builder.suggest(&literal.value).build(),
+                    }
                 } else {
                     Suggestions::default()
                 }
@@ -263,6 +290,7 @@ impl<S, R> Default for CommandNode<S, R> {
     fn default() -> Self {
         Self {
             value: ArgumentBuilderType::Literal(Literal::default()),
+            description: None,
 
             children: BTreeMap::new(),
             literals: HashMap::new(),
