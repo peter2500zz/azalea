@@ -10,6 +10,7 @@ use crate::{
     context::CommandContext,
     errors::CommandSyntaxError,
     modifier::RedirectModifier,
+    suggestion::SuggestionProvider,
     tree::{Command, CommandNode},
 };
 
@@ -151,6 +152,44 @@ impl<S, R> ArgumentBuilder<S, R> {
         F: Fn(&S) -> bool + Send + Sync + 'static,
     {
         self.requirement = Arc::new(requirement);
+        self
+    }
+
+    /// Decide what to suggest for this argument, instead of asking its
+    /// [`ArgumentType`].
+    ///
+    /// This is where suggestions that depend on the source belong — the names
+    /// currently in a registry, the files in a directory, whatever the caller
+    /// is allowed to see. A closure is a provider, so the usual form is:
+    ///
+    /// ```
+    /// # use azalea_brigadier::prelude::*;
+    /// # use azalea_brigadier::{context::CommandContext, suggestion::SuggestionsBuilder};
+    /// # let mut subject = CommandDispatcher::<()>::new();
+    /// # subject.register(
+    /// argument("colour", word())
+    ///     .suggests(|_ctx: CommandContext<()>, builder: SuggestionsBuilder| {
+    ///         builder.suggest("red").suggest("green").build()
+    ///     })
+    ///     .executes(|ctx: &CommandContext<()>| 42)
+    /// # );
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// If this node is a literal. Literals suggest themselves and have nothing
+    /// to ask a provider about; Mojang's brigadier puts this method on the
+    /// required-argument builder alone, where the type system rules it out.
+    ///
+    /// [`ArgumentType`]: crate::arguments::ArgumentType
+    pub fn suggests(
+        mut self,
+        provider: impl SuggestionProvider<S, R> + Send + Sync + 'static,
+    ) -> Self {
+        let ArgumentBuilderType::Argument(argument) = &mut self.arguments.value else {
+            panic!("ArgumentBuilder::suggests() called on a literal node");
+        };
+        argument.custom_suggestions = Some(Arc::new(provider));
         self
     }
 

@@ -19,7 +19,9 @@ use crate::{
 pub struct Argument<S, R> {
     pub name: String,
     parser: Arc<dyn ArgumentType + Send + Sync>,
-    custom_suggestions: Option<Arc<dyn SuggestionProvider<S, R> + Send + Sync>>,
+    // Set through `ArgumentBuilder::suggests`, which lives in the sibling
+    // module.
+    pub(crate) custom_suggestions: Option<Arc<dyn SuggestionProvider<S, R> + Send + Sync>>,
 }
 impl<S, R> Argument<S, R> {
     pub fn new(
