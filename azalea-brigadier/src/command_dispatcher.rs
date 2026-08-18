@@ -86,13 +86,13 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
             let parse_with_context_result =
                 child.read().parse_with_context(&mut reader, &mut context);
             if let Err(ex) = parse_with_context_result {
-                errors.insert(
-                    Rc::new((*child.read()).clone()),
-                    BuiltInError::DispatcherParseException {
-                        message: ex.message(),
-                    }
-                    .create_with_context(&reader),
-                );
+                // Store the error as it came. Wrapping it in
+                // `DispatcherParseException { message: ex.message() }` doubles the
+                // position and `<--[HERE]` marker: `message()` appends them, and the
+                // outer error appends them again over the same reader. Upstream
+                // Brigadier keeps the original here too — it only reaches for
+                // `DISPATCHER_PARSE_EXCEPTION` when a non-syntax error escapes.
+                errors.insert(Rc::new((*child.read()).clone()), ex);
                 reader.cursor = cursor;
                 continue;
             }
