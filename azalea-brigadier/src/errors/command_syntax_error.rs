@@ -57,15 +57,23 @@ impl CommandSyntaxError {
             && let Some(cursor) = self.cursor
         {
             let mut builder = String::new();
-            let cursor = cmp::min(input.len(), cursor);
+            let mut cursor = cmp::min(input.len(), cursor);
+            while !input.is_char_boundary(cursor) {
+                cursor -= 1;
+            }
 
-            if cursor > CONTEXT_AMOUNT {
+            let before_cursor = &input[..cursor];
+            let start = before_cursor
+                .char_indices()
+                .rev()
+                .nth(CONTEXT_AMOUNT - 1)
+                .map_or(0, |(index, _)| index);
+
+            if start > 0 {
                 builder.push_str("...");
             }
 
-            builder.push_str(
-                &input[(cmp::max(0, cursor as isize - CONTEXT_AMOUNT as isize) as usize)..cursor],
-            );
+            builder.push_str(&before_cursor[start..]);
             builder.push_str("<--[HERE]");
 
             return Some(builder);

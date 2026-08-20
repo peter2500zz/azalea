@@ -98,3 +98,21 @@ fn suggests_literal_after_non_ascii_prefix_is_rejected() {
         vec!["echo"]
     );
 }
+
+#[test]
+fn formats_error_context_on_character_boundaries() {
+    let subject = word_dispatcher();
+    let input = "quote \"你好你好";
+    let error = subject.execute(input, CommandSource {}).unwrap_err();
+
+    assert_eq!(error.cursor(), Some(input.len()));
+    assert_eq!(
+        error.context().as_deref(),
+        Some("...uote \"你好你好<--[HERE]")
+    );
+    assert_eq!(
+        error.message(),
+        "Unclosed quoted string at position 19: ...uote \"你好你好<--[HERE]"
+    );
+    assert_eq!(format!("{error:?}"), error.message());
+}
