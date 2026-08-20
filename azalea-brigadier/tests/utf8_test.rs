@@ -116,3 +116,24 @@ fn formats_error_context_on_character_boundaries() {
     );
     assert_eq!(format!("{error:?}"), error.message());
 }
+
+#[test]
+fn suggests_after_prefixes_whose_lowercase_changes_utf8_length() {
+    let mut subject = CommandDispatcher::<CommandSource>::new();
+    subject.register(literal("K").then(literal("next").executes(|_| 1)));
+    subject.register(literal("İ").then(literal("next").executes(|_| 1)));
+
+    for input in ["K ", "İ "] {
+        let parse = subject.parse(StringReader::from(input), CommandSource {});
+        let suggestions = CommandDispatcher::get_completion_suggestions(parse);
+        assert_eq!(
+            suggestions
+                .list()
+                .iter()
+                .map(|suggestion| suggestion.text())
+                .collect::<Vec<_>>(),
+            vec!["next"],
+            "input: {input:?}"
+        );
+    }
+}

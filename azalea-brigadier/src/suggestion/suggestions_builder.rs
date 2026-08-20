@@ -19,12 +19,21 @@ impl SuggestionsBuilder {
     }
 
     pub fn new_with_lowercase(input: &str, input_lowercase: &str, start: usize) -> Self {
+        // `start` indexes the original UTF-8 string. Lowercasing can change a
+        // character's encoded width, so translate the prefix length before
+        // using the offset on `input_lowercase`.
+        let lowercase_start = input[..start]
+            .chars()
+            .flat_map(char::to_lowercase)
+            .map(char::len_utf8)
+            .sum::<usize>();
+
         Self {
             start,
             input: input.to_owned(),
             input_lowercase: input_lowercase.to_owned(),
             remaining: input[start..].to_owned(),
-            remaining_lowercase: input_lowercase[start..].to_owned(),
+            remaining_lowercase: input_lowercase[lowercase_start..].to_owned(),
             result: HashSet::new(),
         }
     }
