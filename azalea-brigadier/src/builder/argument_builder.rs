@@ -1,3 +1,5 @@
+#[cfg(feature = "async")]
+use std::future::Future;
 use std::{
     fmt::{self, Debug},
     sync::Arc,
@@ -36,6 +38,8 @@ pub struct ArgumentBuilder<S, R = i32> {
 
     description: Option<String>,
     command: Command<S, R>,
+    #[cfg(feature = "async")]
+    async_command: crate::tree::AsyncCommand<S, R>,
     requirement: Arc<dyn Fn(&S) -> bool + Send + Sync>,
     target: Option<Arc<RwLock<CommandNode<S, R>>>>,
 
@@ -53,6 +57,8 @@ impl<S, R> ArgumentBuilder<S, R> {
             },
             description: None,
             command: None,
+            #[cfg(feature = "async")]
+            async_command: None,
             requirement: Arc::new(|_| true),
             forks: false,
             modifier: None,
@@ -96,6 +102,10 @@ impl<S, R> ArgumentBuilder<S, R> {
         F: Fn(&CommandContext<S, R>) -> R + Send + Sync + 'static,
     {
         self.command = Some(Arc::new(move |ctx: &CommandContext<S, R>| Ok(f(ctx))));
+        #[cfg(feature = "async")]
+        {
+            self.async_command = None;
+        }
         self
     }
 
@@ -106,6 +116,84 @@ impl<S, R> ArgumentBuilder<S, R> {
         F: Fn(&CommandContext<S, R>) -> Result<R, CommandSyntaxError> + Send + Sync + 'static,
     {
         self.command = Some(Arc::new(f));
+        #[cfg(feature = "async")]
+        {
+            self.async_command = None;
+        }
+        self
+    }
+
+    /// Set an asynchronous command to be executed when this node is reached.
+    ///
+    /// The closure itself is called synchronously while an execution plan is
+    /// prepared. Use it only to copy owned data out of the context; the future
+    /// it returns is what runs asynchronously. The future must therefore own
+    /// everything it uses across an `.await` and be `Send + 'static`.
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use azalea_brigadier::{builder::argument_builder::ArgumentBuilder, prelude::*};
+    /// let command: ArgumentBuilder<()> =
+    ///     literal("later").executes_async(|ctx: &CommandContext<()>| {
+    ///         let source = Arc::clone(&ctx.source);
+    ///         async move {
+    ///             drop(source);
+    ///             42
+    ///         }
+    ///     });
+    /// # let _ = command;
+    /// ```
+    ///
+    /// Borrowing the parsing context into the returned future is rejected:
+    ///
+    /// ```compile_fail
+    /// # use std::sync::Arc;
+    /// # use azalea_brigadier::{builder::argument_builder::ArgumentBuilder, prelude::*};
+    /// let command: ArgumentBuilder<()> =
+    ///     literal("bad").executes_async(|ctx: &CommandContext<()>| async move {
+    ///         Arc::strong_count(&ctx.source) as i32
+    ///     });
+    /// # let _ = command;
+    /// ```
+    ///
+    /// So is a future carrying thread-local state:
+    ///
+    /// ```compile_fail
+    /// # use std::rc::Rc;
+    /// # use azalea_brigadier::{builder::argument_builder::ArgumentBuilder, prelude::*};
+    /// let command: ArgumentBuilder<()> = literal("bad").executes_async(|_| {
+    ///     let local = Rc::new(());
+    ///     async move {
+    ///         drop(local);
+    ///         1
+    ///     }
+    /// });
+    /// # let _ = command;
+    /// ```
+    #[cfg(feature = "async")]
+    pub fn executes_async<F, Fut>(mut self, f: F) -> Self
+    where
+        F: Fn(&CommandContext<S, R>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = R> + Send + 'static,
+    {
+        self.command = None;
+        self.async_command = Some(Arc::new(move |ctx: &CommandContext<S, R>| {
+            let future = f(ctx);
+            Box::pin(async move { Ok(future.await) })
+        }));
+        self
+    }
+
+    /// Same as [`Self::executes_async`] but the future returns a
+    /// `Result<R, CommandSyntaxError>`.
+    #[cfg(feature = "async")]
+    pub fn executes_async_result<F, Fut>(mut self, f: F) -> Self
+    where
+        F: Fn(&CommandContext<S, R>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<R, CommandSyntaxError>> + Send + 'static,
+    {
+        self.command = None;
+        self.async_command = Some(Arc::new(move |ctx: &CommandContext<S, R>| Box::pin(f(ctx))));
         self
     }
 
@@ -231,6 +319,8 @@ impl<S, R> ArgumentBuilder<S, R> {
             value: self.arguments.value,
             description: self.description,
             command: self.command,
+            #[cfg(feature = "async")]
+            async_command: self.async_command,
             requirement: self.requirement,
             redirect: self.target,
             modifier: self.modifier,
@@ -266,6 +356,8 @@ impl<S, R> Clone for ArgumentBuilder<S, R> {
             arguments: self.arguments.clone(),
             description: self.description.clone(),
             command: self.command.clone(),
+            #[cfg(feature = "async")]
+            async_command: self.async_command.clone(),
             requirement: self.requirement.clone(),
             target: self.target.clone(),
             forks: self.forks,

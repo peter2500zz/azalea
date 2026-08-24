@@ -11,6 +11,8 @@ use super::{
     ParsedArgument, command_context::CommandContext, parsed_command_node::ParsedCommandNode,
     string_range::StringRange, suggestion_context::SuggestionContext,
 };
+#[cfg(feature = "async")]
+use crate::tree::AsyncCommand;
 use crate::{
     command_dispatcher::CommandDispatcher,
     modifier::RedirectModifier,
@@ -24,6 +26,8 @@ pub struct CommandContextBuilder<'a, S, R> {
     pub dispatcher: &'a CommandDispatcher<S, R>,
     pub source: Arc<S>,
     pub command: Command<S, R>,
+    #[cfg(feature = "async")]
+    pub async_command: AsyncCommand<S, R>,
     pub child: Option<Rc<CommandContextBuilder<'a, S, R>>>,
     pub range: StringRange,
     pub modifier: Option<Arc<RedirectModifier<S, R>>>,
@@ -39,6 +43,8 @@ impl<S, R> Clone for CommandContextBuilder<'_, S, R> {
             dispatcher: self.dispatcher,
             source: self.source.clone(),
             command: self.command.clone(),
+            #[cfg(feature = "async")]
+            async_command: self.async_command.clone(),
             child: self.child.clone(),
             range: self.range,
             modifier: self.modifier.clone(),
@@ -60,6 +66,8 @@ impl<'a, S, R> CommandContextBuilder<'a, S, R> {
             source,
             range: StringRange::at(start),
             command: None,
+            #[cfg(feature = "async")]
+            async_command: None,
             dispatcher,
             nodes: vec![],
             child: None,
@@ -70,6 +78,11 @@ impl<'a, S, R> CommandContextBuilder<'a, S, R> {
 
     pub fn with_command(&mut self, command: &Command<S, R>) -> &Self {
         self.command.clone_from(command);
+        self
+    }
+    #[cfg(feature = "async")]
+    pub fn with_async_command(&mut self, command: &AsyncCommand<S, R>) -> &Self {
+        self.async_command.clone_from(command);
         self
     }
     pub fn with_child(&mut self, child: Rc<CommandContextBuilder<'a, S, R>>) -> &Self {
@@ -98,6 +111,8 @@ impl<'a, S, R> CommandContextBuilder<'a, S, R> {
             nodes: self.nodes.clone(),
             source: self.source.clone(),
             command: self.command.clone(),
+            #[cfg(feature = "async")]
+            async_command: self.async_command.clone(),
             child: self.child.clone().map(|c| Rc::new(c.build(input))),
             range: self.range,
             forks: self.forks,

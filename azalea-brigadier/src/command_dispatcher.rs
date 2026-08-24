@@ -10,6 +10,8 @@ use std::{
 
 use parking_lot::RwLock;
 
+#[cfg(feature = "async")]
+use crate::async_execution::AsyncExecution;
 use crate::{
     builder::argument_builder::ArgumentBuilder,
     context::{CommandContextBuilder, ContextChain},
@@ -106,6 +108,8 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
             }
 
             context.with_command(&child.read().command);
+            #[cfg(feature = "async")]
+            context.with_async_command(&child.read().async_command);
             if reader.can_read_length(if child.read().redirect.is_none() {
                 2
             } else {
@@ -263,6 +267,81 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
         flat_context.execute_all(original.source.clone(), self.consumer.as_ref())
     }
 
+    /// Parse an input and prepare a runtime-agnostic asynchronous execution.
+    ///
+    /// This method is synchronous: parsing, redirect modifiers, and the calls
+    /// to command closures happen before it returns. The returned plan contains
+    /// only `Send + 'static` futures and may be moved to a multi-threaded
+    /// executor. Command closures should copy owned values out of their
+    /// [`CommandContext`](crate::context::CommandContext) before constructing
+    /// their future.
+    #[cfg(feature = "async")]
+    pub fn prepare_async(
+        &self,
+        input: impl Into<StringReader>,
+        source: S,
+    ) -> Result<AsyncExecution<R>, CommandSyntaxError>
+    where
+        S: Send + Sync + 'static,
+        R: Send + 'static,
+    {
+        let parse = self.parse(input.into(), source);
+        self.prepare_parsed_async(parse)
+    }
+
+    /// Prepare an asynchronous execution from an existing parse result.
+    #[cfg(feature = "async")]
+    pub fn prepare_parsed_async(
+        &self,
+        parse: ParseResults<S, R>,
+    ) -> Result<AsyncExecution<R>, CommandSyntaxError>
+    where
+        S: Send + Sync + 'static,
+        R: Send + 'static,
+    {
+        if parse.reader.can_read() {
+            return Err(if parse.exceptions.len() == 1 {
+                parse.exceptions.values().next().unwrap().clone()
+            } else if parse.context.range.is_empty() {
+                BuiltInError::DispatcherUnknownCommand.create_with_context(&parse.reader)
+            } else {
+                BuiltInError::DispatcherUnknownArgument.create_with_context(&parse.reader)
+            });
+        }
+
+        let command = parse.reader.string();
+        let original = Rc::new(parse.context.build(command));
+        let flat_context = ContextChain::try_flatten_async(original.clone());
+        let Some(flat_context) = flat_context else {
+            self.consumer.on_command_complete(original, false, 0);
+            return Err(BuiltInError::DispatcherUnknownCommand.create_with_context(&parse.reader));
+        };
+
+        flat_context.prepare_async(original.source.clone(), self.consumer.as_ref())
+    }
+
+    /// Parse, prepare, and asynchronously execute an input.
+    ///
+    /// Preparation happens when the returned future is first polled. This
+    /// keeps parsing, redirect modifiers, and construction of runtime-bound
+    /// futures on the executor when this method is awaited inside a task.
+    #[cfg(feature = "async")]
+    pub fn execute_async<'a>(
+        &'a self,
+        input: impl Into<StringReader>,
+        source: S,
+    ) -> impl std::future::Future<Output = Result<R, CommandSyntaxError>> + Send + 'a
+    where
+        S: Send + Sync + 'static,
+        R: Send + 'static,
+    {
+        let input = input.into();
+        async move {
+            let execution = self.prepare_async(input, source)?;
+            execution.execute().await
+        }
+    }
+
     pub fn get_all_usage(
         &self,
         node: &CommandNode<S, R>,
@@ -285,7 +364,7 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
         if restricted && !node.can_use(source) {
             return;
         }
-        if node.command.is_some() {
+        if node.has_command() {
             result.push(prefix.to_owned());
         }
         match &node.redirect {
@@ -332,7 +411,7 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
     ) -> Vec<(Arc<RwLock<CommandNode<S, R>>>, String)> {
         let mut result = Vec::new();
 
-        let optional = node.command.is_some();
+        let optional = node.has_command();
         for child in node.children.values() {
             let usage = self.get_smart_usage_recursive(&child.read(), source, optional, false);
             if let Some(usage) = usage {
@@ -359,7 +438,7 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
         } else {
             node.usage_text()
         };
-        let child_optional = node.command.is_some();
+        let child_optional = node.has_command();
         let open = if child_optional { "[" } else { "(" };
         let close = if child_optional { "]" } else { ")" };
 

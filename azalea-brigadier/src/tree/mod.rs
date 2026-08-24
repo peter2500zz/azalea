@@ -8,6 +8,8 @@ use std::{
 
 use parking_lot::RwLock;
 
+#[cfg(feature = "async")]
+use crate::async_execution::CommandFuture;
 use crate::{
     builder::{
         argument_builder::ArgumentBuilderType, literal_argument_builder::Literal,
@@ -22,6 +24,10 @@ use crate::{
 
 pub type Command<S, R> =
     Option<Arc<dyn Fn(&CommandContext<S, R>) -> Result<R, CommandSyntaxError> + Send + Sync>>;
+
+#[cfg(feature = "async")]
+pub type AsyncCommand<S, R> =
+    Option<Arc<dyn Fn(&CommandContext<S, R>) -> CommandFuture<R> + Send + Sync>>;
 
 /// An ArgumentBuilder that has been built.
 #[non_exhaustive]
@@ -48,6 +54,8 @@ pub struct CommandNode<S, R = i32> {
     pub arguments: HashMap<String, Arc<RwLock<CommandNode<S, R>>>>,
 
     pub command: Command<S, R>,
+    #[cfg(feature = "async")]
+    pub async_command: AsyncCommand<S, R>,
     pub requirement: Arc<dyn Fn(&S) -> bool + Send + Sync>,
     pub redirect: Option<Arc<RwLock<CommandNode<S, R>>>>,
     pub forks: bool,
@@ -63,6 +71,8 @@ impl<S, R> Clone for CommandNode<S, R> {
             literals: self.literals.clone(),
             arguments: self.arguments.clone(),
             command: self.command.clone(),
+            #[cfg(feature = "async")]
+            async_command: self.async_command.clone(),
             requirement: self.requirement.clone(),
             redirect: self.redirect.clone(),
             forks: self.forks,
@@ -129,12 +139,34 @@ impl<S, R> CommandNode<S, R> {
         (self.requirement)(source)
     }
 
+    /// Whether this node has an action for either execution mode.
+    pub fn has_command(&self) -> bool {
+        #[cfg(feature = "async")]
+        {
+            self.command.is_some() || self.async_command.is_some()
+        }
+        #[cfg(not(feature = "async"))]
+        {
+            self.command.is_some()
+        }
+    }
+
     pub fn add_child(&mut self, node: &Arc<RwLock<CommandNode<S, R>>>) {
         let child = self.children.get(node.read().name());
         if let Some(child) = child {
             // We've found something to merge onto
+            #[cfg(not(feature = "async"))]
             if let Some(command) = &node.read().command {
                 child.write().command = Some(command.clone());
+            }
+            #[cfg(feature = "async")]
+            {
+                let incoming = node.read();
+                if incoming.command.is_some() || incoming.async_command.is_some() {
+                    let mut existing = child.write();
+                    existing.command.clone_from(&incoming.command);
+                    existing.async_command.clone_from(&incoming.async_command);
+                }
             }
             // Same rule as the command above: the incoming node wins, but only
             // where it actually says something. Registering `foo bar` and then
@@ -274,15 +306,17 @@ impl<S, R> CommandNode<S, R> {
 
 impl<S, R> Debug for CommandNode<S, R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("CommandNode")
-            // .field("value", &self.value)
-            .field("children", &self.children)
-            .field("command", &self.command.is_some())
-            // .field("requirement", &self.requirement)
-            .field("redirect", &self.redirect)
-            .field("forks", &self.forks)
-            // .field("modifier", &self.modifier)
-            .finish()
+        let mut debug = f.debug_struct("CommandNode");
+        // debug.field("value", &self.value);
+        debug.field("children", &self.children);
+        debug.field("command", &self.command.is_some());
+        #[cfg(feature = "async")]
+        debug.field("async_command", &self.async_command.is_some());
+        // debug.field("requirement", &self.requirement);
+        debug.field("redirect", &self.redirect);
+        debug.field("forks", &self.forks);
+        // debug.field("modifier", &self.modifier);
+        debug.finish()
     }
 }
 
@@ -297,6 +331,8 @@ impl<S, R> Default for CommandNode<S, R> {
             arguments: HashMap::new(),
 
             command: None,
+            #[cfg(feature = "async")]
+            async_command: None,
             requirement: Arc::new(|_| true),
             redirect: None,
             forks: false,
@@ -314,6 +350,8 @@ impl<S, R> Hash for CommandNode<S, R> {
         }
         // i hope this works because if doesn't then that'll be a problem
         ptr::hash(&self.command, state);
+        #[cfg(feature = "async")]
+        ptr::hash(&self.async_command, state);
     }
 }
 
@@ -345,6 +383,22 @@ impl<S, R> PartialEq for CommandNode<S, R> {
             }
             _ => {
                 if other.command.is_some() {
+                    return false;
+                }
+            }
+        }
+        #[cfg(feature = "async")]
+        match &self.async_command {
+            Some(self_executes) => match &other.async_command {
+                Some(other_executes) => {
+                    if !Arc::ptr_eq(self_executes, other_executes) {
+                        return false;
+                    }
+                }
+                None => return false,
+            },
+            None => {
+                if other.async_command.is_some() {
                     return false;
                 }
             }

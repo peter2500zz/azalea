@@ -9,6 +9,8 @@ use std::{
 use parking_lot::RwLock;
 
 use super::{ParsedArgument, parsed_command_node::ParsedCommandNode, string_range::StringRange};
+#[cfg(feature = "async")]
+use crate::tree::AsyncCommand;
 use crate::{
     modifier::RedirectModifier,
     tree::{Command, CommandNode},
@@ -20,6 +22,8 @@ pub struct CommandContext<S, R = i32> {
     pub(super) input: String,
     pub(super) arguments: HashMap<String, ParsedArgument>,
     pub(super) command: Command<S, R>,
+    #[cfg(feature = "async")]
+    pub(super) async_command: AsyncCommand<S, R>,
     pub(super) root_node: Arc<RwLock<CommandNode<S, R>>>,
     pub(super) nodes: Vec<ParsedCommandNode<S, R>>,
     pub(super) range: StringRange,
@@ -35,6 +39,8 @@ impl<S, R> Clone for CommandContext<S, R> {
             input: self.input.clone(),
             arguments: self.arguments.clone(),
             command: self.command.clone(),
+            #[cfg(feature = "async")]
+            async_command: self.async_command.clone(),
             root_node: self.root_node.clone(),
             nodes: self.nodes.clone(),
             range: self.range,
@@ -74,6 +80,8 @@ impl<S, R> CommandContext<S, R> {
             input: self.input.clone(),
             arguments: self.arguments.clone(),
             command: self.command.clone(),
+            #[cfg(feature = "async")]
+            async_command: self.async_command.clone(),
             root_node: self.root_node.clone(),
             nodes: self.nodes.clone(),
             range: self.range,
@@ -97,6 +105,11 @@ impl<S, R> CommandContext<S, R> {
 
     pub fn command(&self) -> &Command<S, R> {
         &self.command
+    }
+
+    #[cfg(feature = "async")]
+    pub fn async_command(&self) -> &AsyncCommand<S, R> {
+        &self.async_command
     }
 
     pub fn argument(&self, name: &str) -> Option<&dyn Any> {
