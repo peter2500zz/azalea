@@ -1,6 +1,8 @@
 #![doc = include_str!("../README.md")]
 
 pub mod arguments;
+#[cfg(feature = "async")]
+pub mod async_execution;
 pub mod builder;
 pub mod command_dispatcher;
 pub mod context;

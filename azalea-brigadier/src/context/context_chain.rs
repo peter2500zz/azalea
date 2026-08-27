@@ -1,6 +1,8 @@
 use std::{rc::Rc, sync::Arc};
 
 use super::CommandContext;
+#[cfg(feature = "async")]
+use crate::async_execution::{AsyncExecution, CommandFuture};
 use crate::{
     errors::{CommandResultTrait, CommandSyntaxError},
     result_consumer::ResultConsumer,
@@ -37,6 +39,31 @@ impl<S, R: CommandResultTrait> ContextChain<S, R> {
                 current.command.as_ref()?;
 
                 return Some(ContextChain::new(modifiers, current));
+            };
+
+            modifiers.push(current);
+            current = child;
+        }
+    }
+
+    /// Flatten a context whose last node has either an asynchronous command or
+    /// a synchronous command that can be run as part of an async execution.
+    #[cfg(feature = "async")]
+    pub(crate) fn try_flatten_async(root_context: Rc<CommandContext<S, R>>) -> Option<Self> {
+        let mut modifiers = Vec::new();
+        let mut current = root_context;
+        loop {
+            let child = current.child.clone();
+            let Some(child) = child else {
+                if current.async_command.is_none() && current.command.is_none() {
+                    return None;
+                }
+
+                return Some(Self {
+                    modifiers,
+                    executable: current,
+                    next_stage_cache: None,
+                });
             };
 
             modifiers.push(current);
@@ -148,6 +175,82 @@ impl<S, R: CommandResultTrait> ContextChain<S, R> {
         }
 
         Ok(R::new(summed))
+    }
+
+    /// Resolve redirects and forks and turn every selected action into a
+    /// thread-safe future. No parsed context is retained in the returned plan.
+    #[cfg(feature = "async")]
+    pub(crate) fn prepare_async(
+        &self,
+        source: Arc<S>,
+        result_consumer: &dyn ResultConsumer<S, R>,
+    ) -> Result<AsyncExecution<R>, CommandSyntaxError>
+    where
+        S: Send + Sync + 'static,
+        R: Send + 'static,
+    {
+        if self.modifiers.is_empty() {
+            return Ok(AsyncExecution::new(
+                vec![Self::prepare_executable_async(
+                    self.executable.clone(),
+                    source,
+                )],
+                false,
+            ));
+        }
+
+        let mut forked_mode = false;
+        let mut current_sources = vec![source];
+
+        for modifier in &self.modifiers {
+            forked_mode |= modifier.is_forked();
+
+            let mut next_sources = Vec::new();
+            for source_to_run in current_sources {
+                let sources = Self::run_modifier(
+                    modifier.clone(),
+                    source_to_run,
+                    result_consumer,
+                    forked_mode,
+                )?;
+                next_sources.extend(sources);
+            }
+            if next_sources.is_empty() {
+                return Ok(AsyncExecution::empty(forked_mode));
+            }
+            current_sources = next_sources;
+        }
+
+        let commands = current_sources
+            .into_iter()
+            .map(|execution_source| {
+                Self::prepare_executable_async(self.executable.clone(), execution_source)
+            })
+            .collect();
+
+        Ok(AsyncExecution::new(commands, forked_mode))
+    }
+
+    #[cfg(feature = "async")]
+    fn prepare_executable_async(
+        executable: Rc<CommandContext<S, R>>,
+        source: Arc<S>,
+    ) -> CommandFuture<R>
+    where
+        S: Send + Sync + 'static,
+        R: Send + 'static,
+    {
+        let context = executable.copy_for(source);
+        if let Some(command) = &executable.async_command {
+            return command(&context);
+        }
+
+        let command = executable
+            .command
+            .as_ref()
+            .expect("async execution context must contain a command");
+        let result = command(&context);
+        Box::pin(std::future::ready(result))
     }
 
     pub fn stage(&self) -> Stage {

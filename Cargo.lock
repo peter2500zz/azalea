@@ -317,6 +317,7 @@ dependencies = [
  "azalea-chat",
  "bevy_app",
  "bevy_ecs",
+ "futures",
  "parking_lot",
 ]
 
