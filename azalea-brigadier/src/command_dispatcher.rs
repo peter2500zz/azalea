@@ -576,7 +576,8 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
                     &truncated_input,
                     &truncated_input_lowercase,
                     start,
-                ),
+                )
+                .ignore_terminal_spaces(),
             );
             all_suggestions.push(suggestions);
         }
