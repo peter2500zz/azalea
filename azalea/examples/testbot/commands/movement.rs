@@ -13,7 +13,7 @@ use crate::commands::Dispatcher;
 pub fn register(commands: &mut Dispatcher) {
     commands.register(
         literal("goto")
-            .executes(|ctx: &Ctx| {
+            .executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
                 let source = ctx.source.lock();
                 println!("got goto");
                 // look for the sender
@@ -36,12 +36,12 @@ pub fn register(commands: &mut Dispatcher) {
                     println!("goto xz {x} {z}");
                     source.reply("ok");
                     source.bot.start_goto(XZGoal { x, z });
-                    Ok(1)
+                    1
                 }),
             )))
             .then(literal("radius").then(argument("radius", float()).then(
                 argument("x", integer()).then(argument("y", integer()).then(
-                    argument("z", integer()).executes(|ctx: &Ctx| {
+                    argument("z", integer()).executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
                         let source = ctx.source.lock();
                         let radius = get_float(ctx, "radius").unwrap();
                         let x = get_integer(ctx, "x").unwrap();
@@ -58,7 +58,7 @@ pub fn register(commands: &mut Dispatcher) {
                 )),
             )))
             .then(argument("x", integer()).then(argument("y", integer()).then(
-                argument("z", integer()).executes(|ctx: &Ctx| {
+                argument("z", integer()).executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
                     let source = ctx.source.lock();
                     let x = get_integer(ctx, "x").unwrap();
                     let y = get_integer(ctx, "y").unwrap();
@@ -71,34 +71,38 @@ pub fn register(commands: &mut Dispatcher) {
             ))),
     );
 
-    commands.register(literal("follow").executes(|ctx: &Ctx| {
-        let source = ctx.source.lock();
-        println!("got follow");
-        // look for the sender
-        let Some(entity) = source.entity() else {
-            source.reply("I can't see you!");
-            return Ok(0);
-        };
-        source.reply("ok");
-        *source.state.following_entity.lock() = Some(entity);
-        Ok(1)
-    }));
+    commands.register(
+        literal("follow").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+            let source = ctx.source.lock();
+            println!("got follow");
+            // look for the sender
+            let Some(entity) = source.entity() else {
+                source.reply("I can't see you!");
+                return Ok(0);
+            };
+            source.reply("ok");
+            *source.state.following_entity.lock() = Some(entity);
+            Ok(1)
+        }),
+    );
 
-    commands.register(literal("down").executes(|ctx: &Ctx| {
-        let source = ctx.source.clone();
-        let bot = source.lock().bot.clone();
-        let position = BlockPos::from(bot.position()?);
-        tokio::spawn(async move {
-            source.lock().reply("mining...");
-            bot.mine(position.down(1)).await;
-            source.lock().reply("done");
-        });
-        Ok(1)
-    }));
+    commands.register(
+        literal("down").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+            let source = ctx.source.clone();
+            let bot = source.lock().bot.clone();
+            let position = BlockPos::from(bot.position()?);
+            tokio::spawn(async move {
+                source.lock().reply("mining...");
+                bot.mine(position.down(1)).await;
+                source.lock().reply("done");
+            });
+            Ok(1)
+        }),
+    );
 
     commands.register(
         literal("look")
-            .executes(|ctx: &Ctx| {
+            .executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
                 // look for the sender
                 let source = ctx.source.lock();
                 let Some(entity) = source.entity() else {
@@ -110,7 +114,7 @@ pub fn register(commands: &mut Dispatcher) {
                 Ok(1)
             })
             .then(argument("x", integer()).then(argument("y", integer()).then(
-                argument("z", integer()).executes(|ctx: &Ctx| {
+                argument("z", integer()).executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
                     let pos = BlockPos::new(
                         get_integer(ctx, "x").unwrap(),
                         get_integer(ctx, "y").unwrap(),
@@ -147,97 +151,124 @@ pub fn register(commands: &mut Dispatcher) {
     commands.register(
         literal("walk").then(
             argument("seconds", float())
-                .executes(|ctx: &Ctx| walk_command(ctx, WalkDirection::Forward)),
+                .executes_result(|ctx: &Ctx| walk_command(ctx, WalkDirection::Forward)),
         ),
     );
-    commands.register(literal("left").then(
-        argument("seconds", float()).executes(|ctx: &Ctx| walk_command(ctx, WalkDirection::Left)),
-    ));
-    commands.register(literal("right").then(
-        argument("seconds", float()).executes(|ctx: &Ctx| walk_command(ctx, WalkDirection::Right)),
-    ));
     commands.register(
-        literal("sprint").then(argument("seconds", float()).executes(|ctx: &Ctx| {
-            let seconds = get_float(ctx, "seconds").unwrap();
-            let source = ctx.source.lock();
-            let bot = source.bot.clone();
-            bot.sprint(SprintDirection::Forward);
-            tokio::spawn(async move {
-                tokio::time::sleep(Duration::from_secs_f32(seconds)).await;
-                bot.walk(WalkDirection::None);
-            });
-            source.reply(format!("ok, sprinting for {seconds} seconds"));
-            Ok(1)
-        })),
+        literal("left").then(
+            argument("seconds", float())
+                .executes_result(|ctx: &Ctx| walk_command(ctx, WalkDirection::Left)),
+        ),
+    );
+    commands.register(
+        literal("right").then(
+            argument("seconds", float())
+                .executes_result(|ctx: &Ctx| walk_command(ctx, WalkDirection::Right)),
+        ),
+    );
+    commands.register(
+        literal("sprint").then(argument("seconds", float()).executes_result(
+            |ctx: &Ctx| -> eyre::Result<i32> {
+                let seconds = get_float(ctx, "seconds").unwrap();
+                let source = ctx.source.lock();
+                let bot = source.bot.clone();
+                bot.sprint(SprintDirection::Forward);
+                tokio::spawn(async move {
+                    tokio::time::sleep(Duration::from_secs_f32(seconds)).await;
+                    bot.walk(WalkDirection::None);
+                });
+                source.reply(format!("ok, sprinting for {seconds} seconds"));
+                Ok(1)
+            },
+        )),
     );
 
-    commands.register(literal("north").executes(|ctx: &Ctx| {
-        let source = ctx.source.lock();
-        source.bot.set_direction(180., 0.)?;
-        source.reply("ok");
-        Ok(1)
-    }));
-    commands.register(literal("south").executes(|ctx: &Ctx| {
-        let source = ctx.source.lock();
-        source.bot.set_direction(0., 0.)?;
-        source.reply("ok");
-        Ok(1)
-    }));
-    commands.register(literal("east").executes(|ctx: &Ctx| {
-        let source = ctx.source.lock();
-        source.bot.set_direction(-90., 0.)?;
-        source.reply("ok");
-        Ok(1)
-    }));
-    commands.register(literal("west").executes(|ctx: &Ctx| {
-        let source = ctx.source.lock();
-        source.bot.set_direction(90., 0.)?;
-        source.reply("ok");
-        Ok(1)
-    }));
+    commands.register(
+        literal("north").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+            let source = ctx.source.lock();
+            source.bot.set_direction(180., 0.)?;
+            source.reply("ok");
+            Ok(1)
+        }),
+    );
+    commands.register(
+        literal("south").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+            let source = ctx.source.lock();
+            source.bot.set_direction(0., 0.)?;
+            source.reply("ok");
+            Ok(1)
+        }),
+    );
+    commands.register(
+        literal("east").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+            let source = ctx.source.lock();
+            source.bot.set_direction(-90., 0.)?;
+            source.reply("ok");
+            Ok(1)
+        }),
+    );
+    commands.register(
+        literal("west").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+            let source = ctx.source.lock();
+            source.bot.set_direction(90., 0.)?;
+            source.reply("ok");
+            Ok(1)
+        }),
+    );
     commands.register(
         literal("jump")
-            .executes(|ctx: &Ctx| {
+            .executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
                 let source = ctx.source.lock();
                 source.bot.jump();
                 source.reply("ok");
                 Ok(1)
             })
-            .then(argument("enabled", bool()).executes(|ctx: &Ctx| {
-                let jumping = get_bool(ctx, "enabled").unwrap();
-                let source = ctx.source.lock();
-                source.bot.set_jumping(jumping)?;
-                Ok(1)
-            })),
+            .then(
+                argument("enabled", bool()).executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+                    let jumping = get_bool(ctx, "enabled").unwrap();
+                    let source = ctx.source.lock();
+                    source.bot.set_jumping(jumping)?;
+                    Ok(1)
+                }),
+            ),
     );
 
-    let sneak = |ctx: &Ctx| {
+    let sneak = |ctx: &Ctx| -> eyre::Result<i32> {
         let source = ctx.source.lock();
         source.bot.set_crouching(!source.bot.crouching())?;
         source.reply("ok");
         Ok(1)
     };
-    let sneak_enabled = argument("enabled", bool()).executes(|ctx: &Ctx| {
-        let sneaking = get_bool(ctx, "enabled").unwrap();
-        let source = ctx.source.lock();
-        source.bot.set_crouching(sneaking)?;
-        Ok(1)
-    });
-    commands.register(literal("sneak").executes(sneak).then(sneak_enabled.clone()));
-    commands.register(literal("crouch").executes(sneak).then(sneak_enabled));
+    let sneak_enabled =
+        argument("enabled", bool()).executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+            let sneaking = get_bool(ctx, "enabled").unwrap();
+            let source = ctx.source.lock();
+            source.bot.set_crouching(sneaking)?;
+            Ok(1)
+        });
+    commands.register(
+        literal("sneak")
+            .executes_result(sneak)
+            .then(sneak_enabled.clone()),
+    );
+    commands.register(literal("crouch").executes_result(sneak).then(sneak_enabled));
 
-    commands.register(literal("stop").executes(|ctx: &Ctx| {
-        let source = ctx.source.lock();
-        source.bot.stop_pathfinding();
-        source.reply("ok");
-        *source.state.following_entity.lock() = None;
-        Ok(1)
-    }));
-    commands.register(literal("forcestop").executes(|ctx: &Ctx| {
-        let source = ctx.source.lock();
-        source.bot.force_stop_pathfinding();
-        source.reply("ok");
-        *source.state.following_entity.lock() = None;
-        Ok(1)
-    }));
+    commands.register(
+        literal("stop").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+            let source = ctx.source.lock();
+            source.bot.stop_pathfinding();
+            source.reply("ok");
+            *source.state.following_entity.lock() = None;
+            Ok(1)
+        }),
+    );
+    commands.register(
+        literal("forcestop").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+            let source = ctx.source.lock();
+            source.bot.force_stop_pathfinding();
+            source.reply("ok");
+            *source.state.following_entity.lock() = None;
+            Ok(1)
+        }),
+    );
 }

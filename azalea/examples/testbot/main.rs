@@ -169,8 +169,8 @@ async fn handle(bot: Client, event: azalea::Event, state: State) -> eyre::Result
                         state: state.clone(),
                     }),
                 ) {
-                    Ok(Ok(_)) => {}
-                    Ok(Err(err)) => {
+                    Ok(_) => {}
+                    Err(err) => {
                         eprintln!("azalea error: {err:?}");
                         let command_source = CommandSource {
                             bot,
@@ -178,15 +178,6 @@ async fn handle(bot: Client, event: azalea::Event, state: State) -> eyre::Result
                             state: state.clone(),
                         };
                         command_source.reply(format!("azalea error: {err:?}"));
-                    }
-                    Err(err) => {
-                        eprintln!("{err:?}");
-                        let command_source = CommandSource {
-                            bot,
-                            chat: chat.clone(),
-                            state: state.clone(),
-                        };
-                        command_source.reply(format!("{err:?}"));
                     }
                 }
             }

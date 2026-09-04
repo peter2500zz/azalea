@@ -11,8 +11,8 @@ use parking_lot::Mutex;
 
 use crate::State;
 
-pub type Ctx = CommandContext<Mutex<CommandSource>, eyre::Result<i32>>;
-pub type Dispatcher = CommandDispatcher<Mutex<CommandSource>, eyre::Result<i32>>;
+pub type Ctx = CommandContext<Mutex<CommandSource>>;
+pub type Dispatcher = CommandDispatcher<Mutex<CommandSource>>;
 
 pub struct CommandSource {
     pub bot: Client,
