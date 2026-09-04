@@ -56,6 +56,17 @@ impl SuggestionsBuilder {
         &self.remaining_lowercase
     }
 
+    /// Treat a terminal run of ASCII separators as an empty token while
+    /// matching suggestions. The original input and replacement range remain
+    /// unchanged, so applying a suggestion removes only the extra separators.
+    pub(crate) fn ignore_terminal_spaces(mut self) -> Self {
+        if !self.remaining.is_empty() && self.remaining.chars().all(|character| character == ' ') {
+            self.remaining.clear();
+            self.remaining_lowercase.clear();
+        }
+        self
+    }
+
     pub fn build(&self) -> Suggestions {
         Suggestions::create(&self.input, &self.result)
     }

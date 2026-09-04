@@ -155,6 +155,61 @@ fn parse_incomplete_argument() {
 }
 
 #[test]
+fn execute_ignores_terminal_spaces_after_an_executable_node() {
+    let mut subject = CommandDispatcher::new();
+    subject.register(
+        literal("kick").then(
+            argument("player", azalea_brigadier::prelude::word())
+                .executes(|_| 1)
+                .then(
+                    argument("reason", azalea_brigadier::prelude::greedy_string()).executes(|_| 2),
+                ),
+        ),
+    );
+
+    for input in ["kick Bob", "kick Bob ", "kick Bob  ", "kick Bob   "] {
+        let parse = subject.parse(input.into(), &CommandSource {});
+        assert_eq!(parse.reader.remaining(), "", "{input:?} should be complete");
+        assert_eq!(
+            subject.execute(input, &CommandSource {}).unwrap(),
+            1,
+            "{input:?}"
+        );
+    }
+
+    for input in ["kick ", "kick  ", "kick   "] {
+        assert!(
+            subject.execute(input, &CommandSource {}).is_err(),
+            "{input:?}"
+        );
+    }
+
+    assert_eq!(
+        subject
+            .execute("kick Bob reason", &CommandSource {})
+            .unwrap(),
+        2
+    );
+}
+
+#[test]
+fn terminal_spaces_do_not_satisfy_a_required_child() {
+    let mut subject = CommandDispatcher::new();
+    subject.register(
+        literal("say")
+            .then(argument("message", azalea_brigadier::prelude::greedy_string()).executes(|_| 1)),
+    );
+
+    for input in ["say ", "say  ", "say   "] {
+        assert!(
+            subject.execute(input, &CommandSource {}).is_err(),
+            "{input:?}"
+        );
+    }
+    assert_eq!(subject.execute("say hello ", &CommandSource {}).unwrap(), 1);
+}
+
+#[test]
 fn execute_ambiguous_parent_subcommand() {
     let mut subject = CommandDispatcher::new();
 

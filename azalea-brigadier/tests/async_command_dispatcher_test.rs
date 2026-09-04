@@ -60,6 +60,39 @@ fn execute_async_defers_preparation_until_polled() {
 }
 
 #[test]
+fn async_execution_ignores_terminal_spaces_after_an_executable_node() {
+    let mut dispatcher = CommandDispatcher::<(), i32>::new();
+    dispatcher.register(
+        literal("kick").then(
+            argument("player", azalea_brigadier::prelude::word())
+                .executes_async(|_| async { 1 })
+                .then(
+                    argument("reason", azalea_brigadier::prelude::greedy_string())
+                        .executes_async(|_| async { 2 }),
+                ),
+        ),
+    );
+
+    for input in ["kick Bob", "kick Bob ", "kick Bob  ", "kick Bob   "] {
+        assert_eq!(
+            block_on(dispatcher.execute_async(input, ())).unwrap(),
+            1,
+            "{input:?}"
+        );
+    }
+    assert_eq!(
+        block_on(dispatcher.execute_async("kick Bob reason", ())).unwrap(),
+        2
+    );
+    for input in ["kick ", "kick  ", "kick   "] {
+        assert!(
+            block_on(dispatcher.execute_async(input, ())).is_err(),
+            "{input:?}"
+        );
+    }
+}
+
+#[test]
 fn async_execution_accepts_existing_synchronous_commands() {
     let mut dispatcher = CommandDispatcher::new();
     dispatcher.register(literal("answer").executes(|_: &CommandContext<()>| 42));

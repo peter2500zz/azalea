@@ -23,6 +23,16 @@ use crate::{
     tree::CommandNode,
 };
 
+/// Whether the reader is positioned at a non-empty run of terminal ASCII
+/// separators. Brigadier uses an ASCII space as its argument separator; keep
+/// tabs and other whitespace out of this rule so their existing semantics do
+/// not change accidentally.
+fn is_terminal_separator(reader: &StringReader) -> bool {
+    reader.can_read()
+        && reader.peek() == ' '
+        && reader.remaining().chars().all(|character| character == ' ')
+}
+
 /// The root of the command tree. You need to make this to register commands.
 ///
 /// ```
@@ -84,6 +94,7 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
             }
             let mut context = context_so_far.clone();
             let mut reader = original_reader.clone();
+            let child_start = reader.cursor();
 
             let parse_with_context_result =
                 child.read().parse_with_context(&mut reader, &mut context);
@@ -110,6 +121,28 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
             context.with_command(&child.read().command);
             #[cfg(feature = "async")]
             context.with_async_command(&child.read().async_command);
+
+            // A trailing separator without another token is not an argument.
+            // Keep an executable non-redirect node as the selected candidate,
+            // but do not let a required child consume a whitespace-only tail
+            // (in particular, a greedy string must not turn it into a value).
+            // Redirects deliberately keep their existing recursion: completion
+            // relies on the target context even when the next token is empty.
+            if child.read().redirect.is_none()
+                && reader.cursor > child_start
+                && is_terminal_separator(&reader)
+            {
+                if child.read().has_command() {
+                    reader.cursor = reader.total_length();
+                }
+                potentials.push(ParseResults {
+                    context,
+                    reader,
+                    exceptions: HashMap::new(),
+                });
+                continue;
+            }
+
             if reader.can_read_length(if child.read().redirect.is_none() {
                 2
             } else {
@@ -543,7 +576,8 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
                     &truncated_input,
                     &truncated_input_lowercase,
                     start,
-                ),
+                )
+                .ignore_terminal_spaces(),
             );
             all_suggestions.push(suggestions);
         }

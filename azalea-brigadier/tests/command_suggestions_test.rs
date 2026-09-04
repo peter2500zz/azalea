@@ -135,6 +135,22 @@ fn get_completion_suggestions_sub_commands() {
 }
 
 #[test]
+fn get_completion_suggestions_after_terminal_separator_run() {
+    let mut subject = CommandDispatcher::<()>::new();
+    subject.register(literal("kick").then(argument("player", word()).then(literal("reason"))));
+
+    for input in ["kick Bob ", "kick Bob  ", "kick Bob   "] {
+        let result = CommandDispatcher::get_completion_suggestions(subject.parse(input.into(), ()));
+        let player_end = input.find("Bob").unwrap() + "Bob".len();
+        let range = StringRange::between(player_end + 1, input.len());
+
+        assert_eq!(result.range(), range, "{input:?}");
+        assert_eq!(result.list(), vec![Suggestion::new(range, "reason")]);
+        assert_eq!(result.list()[0].apply(input), "kick Bob reason");
+    }
+}
+
+#[test]
 fn get_completion_suggestions_moving_cursor_sub_commands() {
     let mut subject = CommandDispatcher::<()>::new();
     subject.register(
