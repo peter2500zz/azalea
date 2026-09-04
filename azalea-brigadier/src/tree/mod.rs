@@ -16,14 +16,14 @@ use crate::{
         required_argument_builder::Argument,
     },
     context::{CommandContext, CommandContextBuilder, ParsedArgument, StringRange},
-    errors::{BuiltInError, CommandSyntaxError},
+    errors::{BuiltInError, CommandError, CommandSyntaxError},
     modifier::RedirectModifier,
     string_reader::StringReader,
     suggestion::{Suggestions, SuggestionsBuilder},
 };
 
 pub type Command<S, R> =
-    Option<Arc<dyn Fn(&CommandContext<S, R>) -> Result<R, CommandSyntaxError> + Send + Sync>>;
+    Option<Arc<dyn Fn(&CommandContext<S, R>) -> Result<R, CommandError> + Send + Sync>>;
 
 #[cfg(feature = "async")]
 pub type AsyncCommand<S, R> =

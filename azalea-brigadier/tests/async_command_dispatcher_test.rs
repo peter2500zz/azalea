@@ -109,7 +109,10 @@ fn synchronous_execution_does_not_run_an_async_only_command() {
     dispatcher.register(literal("later").executes_async(|_| async { 42 }));
 
     let error = dispatcher.execute("later", ()).unwrap_err();
-    assert_eq!(error.kind(), &BuiltInError::DispatcherUnknownCommand);
+    assert_eq!(
+        error.syntax().unwrap().kind(),
+        &BuiltInError::DispatcherUnknownCommand
+    );
     assert_eq!(block_on(dispatcher.execute_async("later", ())).unwrap(), 42);
 }
 
@@ -162,7 +165,10 @@ fn async_errors_keep_their_structure() {
     }));
 
     let error = block_on(dispatcher.execute_async("fail", ())).unwrap_err();
-    assert_eq!(error.kind(), &BuiltInError::DispatcherUnknownArgument);
+    assert_eq!(
+        error.syntax().unwrap().kind(),
+        &BuiltInError::DispatcherUnknownArgument
+    );
 }
 
 #[derive(Debug, PartialEq)]

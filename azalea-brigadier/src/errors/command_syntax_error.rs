@@ -99,3 +99,11 @@ impl Debug for CommandSyntaxError {
         write!(f, "{}", self.message())
     }
 }
+
+impl fmt::Display for CommandSyntaxError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.message())
+    }
+}
+
+impl std::error::Error for CommandSyntaxError {}

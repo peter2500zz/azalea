@@ -50,6 +50,7 @@ fn execute_unknown_command() {
     let execute_result = subject.execute("foo", &CommandSource {});
 
     let err = execute_result.err().unwrap();
+    let err = err.syntax().unwrap();
     assert_eq!(err.kind(), &BuiltInError::DispatcherUnknownCommand);
     assert_eq!(err.cursor().unwrap(), 0);
 }
@@ -62,6 +63,7 @@ fn execute_impermissible_command() {
     let execute_result = subject.execute("foo", &CommandSource {});
 
     let err = execute_result.err().unwrap();
+    let err = err.syntax().unwrap();
     assert_eq!(err.kind(), &BuiltInError::DispatcherUnknownCommand);
     assert_eq!(err.cursor().unwrap(), 0);
 }
@@ -74,6 +76,7 @@ fn execute_empty_command() {
     let execute_result = subject.execute("", &CommandSource {});
 
     let err = execute_result.err().unwrap();
+    let err = err.syntax().unwrap();
     assert_eq!(err.kind(), &BuiltInError::DispatcherUnknownCommand);
     assert_eq!(err.cursor().unwrap(), 0);
 }
@@ -86,6 +89,7 @@ fn execute_unknown_subcommand() {
     let execute_result = subject.execute("foo bar", &CommandSource {});
 
     let err = execute_result.err().unwrap();
+    let err = err.syntax().unwrap();
     assert_eq!(err.kind(), &BuiltInError::DispatcherUnknownArgument);
     assert_eq!(err.cursor().unwrap(), 4);
 }
@@ -98,6 +102,7 @@ fn execute_incorrect_literal() {
     let execute_result = subject.execute("foo baz", &CommandSource {});
 
     let err = execute_result.err().unwrap();
+    let err = err.syntax().unwrap();
     assert_eq!(err.kind(), &BuiltInError::DispatcherUnknownArgument);
     assert_eq!(err.cursor().unwrap(), 4);
 }
@@ -115,6 +120,7 @@ fn execute_ambiguous_incorrect_argument() {
     let execute_result = subject.execute("foo unknown", &CommandSource {});
 
     let err = execute_result.err().unwrap();
+    let err = err.syntax().unwrap();
     assert_eq!(err.kind(), &BuiltInError::DispatcherUnknownArgument);
     assert_eq!(err.cursor().unwrap(), 4);
 }
@@ -334,6 +340,7 @@ fn execute_orphaned_subcommand() {
     let result = subject.execute("foo 5", &CommandSource {});
     assert!(result.is_err());
     let result = result.unwrap_err();
+    let result = result.syntax().unwrap();
     assert_eq!(*result.kind(), BuiltInError::DispatcherUnknownCommand);
     assert_eq!(result.cursor(), Some(5));
 }
@@ -361,6 +368,7 @@ fn parse_no_space_separator() {
     let result = subject.execute("foo$", &CommandSource {});
     assert!(result.is_err());
     let result = result.unwrap_err();
+    let result = result.syntax().unwrap();
     assert_eq!(*result.kind(), BuiltInError::DispatcherUnknownCommand);
     assert_eq!(result.cursor(), Some(0));
 }
@@ -380,7 +388,7 @@ fn execute_invalid_subcommand() {
     let result = result.unwrap_err();
     // this fails for some reason, i blame mojang
     // assert_eq!(*result.get_type(), BuiltInError::ReaderExpectedInt);
-    assert_eq!(result.cursor(), Some(4));
+    assert_eq!(result.syntax().unwrap().cursor(), Some(4));
 }
 
 #[test]

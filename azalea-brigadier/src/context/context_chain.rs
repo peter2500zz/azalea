@@ -4,7 +4,7 @@ use super::CommandContext;
 #[cfg(feature = "async")]
 use crate::async_execution::{AsyncExecution, CommandFuture};
 use crate::{
-    errors::{CommandResultTrait, CommandSyntaxError},
+    errors::{CommandError, CommandResultTrait},
     result_consumer::ResultConsumer,
 };
 
@@ -76,7 +76,7 @@ impl<S, R: CommandResultTrait> ContextChain<S, R> {
         source: Arc<S>,
         result_consumer: &dyn ResultConsumer<S, R>,
         forked_mode: bool,
-    ) -> Result<Vec<Arc<S>>, CommandSyntaxError> {
+    ) -> Result<Vec<Arc<S>>, CommandError> {
         let source_modifier = modifier.redirect_modifier();
         let Some(source_modifier) = source_modifier else {
             return Ok(vec![source]);
@@ -85,7 +85,7 @@ impl<S, R: CommandResultTrait> ContextChain<S, R> {
         let context_to_use = Rc::new(modifier.copy_for(source));
         let err = match (source_modifier)(&context_to_use) {
             Ok(res) => return Ok(res),
-            Err(e) => e,
+            Err(e) => CommandError::from(e),
         };
 
         result_consumer.on_command_complete(context_to_use, false, 0);
@@ -101,7 +101,7 @@ impl<S, R: CommandResultTrait> ContextChain<S, R> {
         source: Arc<S>,
         result_consumer: &dyn ResultConsumer<S, R>,
         forked_mode: bool,
-    ) -> Result<R, CommandSyntaxError> {
+    ) -> Result<R, CommandError> {
         let context_to_use = Rc::new(executable.copy_for(source));
         let Some(command) = &executable.command else {
             unimplemented!();
@@ -133,7 +133,7 @@ impl<S, R: CommandResultTrait> ContextChain<S, R> {
         &self,
         source: Arc<S>,
         result_consumer: &dyn ResultConsumer<S, R>,
-    ) -> Result<R, CommandSyntaxError> {
+    ) -> Result<R, CommandError> {
         if self.modifiers.is_empty() {
             return self.run_executable(self.executable.clone(), source, result_consumer, false);
         }
@@ -184,7 +184,7 @@ impl<S, R: CommandResultTrait> ContextChain<S, R> {
         &self,
         source: Arc<S>,
         result_consumer: &dyn ResultConsumer<S, R>,
-    ) -> Result<AsyncExecution<R>, CommandSyntaxError>
+    ) -> Result<AsyncExecution<R>, CommandError>
     where
         S: Send + Sync + 'static,
         R: Send + 'static,

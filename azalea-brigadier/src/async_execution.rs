@@ -2,14 +2,13 @@
 
 use std::{future::Future, pin::Pin};
 
-use crate::errors::{CommandResultTrait, CommandSyntaxError};
+use crate::errors::{CommandError, CommandResultTrait};
 
 /// The future returned by an asynchronous command action.
 ///
 /// It is deliberately runtime-agnostic. Executors such as Tokio can spawn it,
 /// but enabling azalea-brigadier's `async` feature does not pull in a runtime.
-pub type CommandFuture<R> =
-    Pin<Box<dyn Future<Output = Result<R, CommandSyntaxError>> + Send + 'static>>;
+pub type CommandFuture<R> = Pin<Box<dyn Future<Output = Result<R, CommandError>> + Send + 'static>>;
 
 /// A prepared asynchronous command execution.
 ///
@@ -41,7 +40,7 @@ where
 {
     /// Await every command selected by redirects and forks, in Brigadier's
     /// normal deterministic order, and combine their results.
-    pub async fn execute(self) -> Result<R, CommandSyntaxError> {
+    pub async fn execute(self) -> Result<R, CommandError> {
         let mut summed = 0;
 
         for command in self.commands {

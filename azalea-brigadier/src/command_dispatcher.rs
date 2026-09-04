@@ -15,7 +15,7 @@ use crate::async_execution::AsyncExecution;
 use crate::{
     builder::argument_builder::ArgumentBuilder,
     context::{CommandContextBuilder, ContextChain},
-    errors::{BuiltInError, CommandResultTrait, CommandSyntaxError},
+    errors::{BuiltInError, CommandError, CommandResultTrait, CommandSyntaxError},
     parse_results::ParseResults,
     result_consumer::{DefaultResultConsumer, ResultConsumer},
     string_reader::StringReader,
@@ -218,11 +218,7 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
     /// significance.
     ///
     /// This is a shortcut for `Self::parse` and `Self::execute_parsed`.
-    pub fn execute(
-        &self,
-        input: impl Into<StringReader>,
-        source: S,
-    ) -> Result<R, CommandSyntaxError> {
+    pub fn execute(&self, input: impl Into<StringReader>, source: S) -> Result<R, CommandError> {
         let input = input.into();
 
         let parse = self.parse(input, source);
@@ -278,15 +274,15 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
     }
 
     /// Executes a given pre-parsed command.
-    pub fn execute_parsed(&self, parse: ParseResults<S, R>) -> Result<R, CommandSyntaxError> {
+    pub fn execute_parsed(&self, parse: ParseResults<S, R>) -> Result<R, CommandError> {
         if parse.reader.can_read() {
-            return Err(if parse.exceptions.len() == 1 {
+            return Err(CommandError::from(if parse.exceptions.len() == 1 {
                 parse.exceptions.values().next().unwrap().clone()
             } else if parse.context.range.is_empty() {
                 BuiltInError::DispatcherUnknownCommand.create_with_context(&parse.reader)
             } else {
                 BuiltInError::DispatcherUnknownArgument.create_with_context(&parse.reader)
-            });
+            }));
         }
 
         let command = parse.reader.string();
@@ -294,7 +290,9 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
         let flat_context = ContextChain::try_flatten(original.clone());
         let Some(flat_context) = flat_context else {
             self.consumer.on_command_complete(original, false, 0);
-            return Err(BuiltInError::DispatcherUnknownCommand.create_with_context(&parse.reader));
+            return Err(CommandError::from(
+                BuiltInError::DispatcherUnknownCommand.create_with_context(&parse.reader),
+            ));
         };
 
         flat_context.execute_all(original.source.clone(), self.consumer.as_ref())
@@ -313,7 +311,7 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
         &self,
         input: impl Into<StringReader>,
         source: S,
-    ) -> Result<AsyncExecution<R>, CommandSyntaxError>
+    ) -> Result<AsyncExecution<R>, CommandError>
     where
         S: Send + Sync + 'static,
         R: Send + 'static,
@@ -327,19 +325,19 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
     pub fn prepare_parsed_async(
         &self,
         parse: ParseResults<S, R>,
-    ) -> Result<AsyncExecution<R>, CommandSyntaxError>
+    ) -> Result<AsyncExecution<R>, CommandError>
     where
         S: Send + Sync + 'static,
         R: Send + 'static,
     {
         if parse.reader.can_read() {
-            return Err(if parse.exceptions.len() == 1 {
+            return Err(CommandError::from(if parse.exceptions.len() == 1 {
                 parse.exceptions.values().next().unwrap().clone()
             } else if parse.context.range.is_empty() {
                 BuiltInError::DispatcherUnknownCommand.create_with_context(&parse.reader)
             } else {
                 BuiltInError::DispatcherUnknownArgument.create_with_context(&parse.reader)
-            });
+            }));
         }
 
         let command = parse.reader.string();
@@ -347,7 +345,9 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
         let flat_context = ContextChain::try_flatten_async(original.clone());
         let Some(flat_context) = flat_context else {
             self.consumer.on_command_complete(original, false, 0);
-            return Err(BuiltInError::DispatcherUnknownCommand.create_with_context(&parse.reader));
+            return Err(CommandError::from(
+                BuiltInError::DispatcherUnknownCommand.create_with_context(&parse.reader),
+            ));
         };
 
         flat_context.prepare_async(original.source.clone(), self.consumer.as_ref())
@@ -363,7 +363,7 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
         &'a self,
         input: impl Into<StringReader>,
         source: S,
-    ) -> impl std::future::Future<Output = Result<R, CommandSyntaxError>> + Send + 'a
+    ) -> impl std::future::Future<Output = Result<R, CommandError>> + Send + 'a
     where
         S: Send + Sync + 'static,
         R: Send + 'static,

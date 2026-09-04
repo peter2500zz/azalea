@@ -105,6 +105,7 @@ fn formats_error_context_on_character_boundaries() {
     let input = "quote \"你好你好";
     let error = subject.execute(input, CommandSource {}).unwrap_err();
 
+    let error = error.syntax().unwrap();
     assert_eq!(error.cursor(), Some(input.len()));
     assert_eq!(
         error.context().as_deref(),

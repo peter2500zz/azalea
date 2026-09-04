@@ -10,7 +10,7 @@ use parking_lot::RwLock;
 use super::{literal_argument_builder::Literal, required_argument_builder::Argument};
 use crate::{
     context::CommandContext,
-    errors::CommandSyntaxError,
+    errors::{BoxCommandError, CommandError},
     modifier::RedirectModifier,
     suggestion::SuggestionProvider,
     tree::{Command, CommandNode},
@@ -111,11 +111,14 @@ impl<S, R> ArgumentBuilder<S, R> {
 
     /// Same as [`Self::executes`] but returns a `Result<i32,
     /// CommandSyntaxError>`.
-    pub fn executes_result<F>(mut self, f: F) -> Self
+    pub fn executes_result<F, E>(mut self, f: F) -> Self
     where
-        F: Fn(&CommandContext<S, R>) -> Result<R, CommandSyntaxError> + Send + Sync + 'static,
+        F: Fn(&CommandContext<S, R>) -> Result<R, E> + Send + Sync + 'static,
+        E: Into<BoxCommandError> + 'static,
     {
-        self.command = Some(Arc::new(f));
+        self.command = Some(Arc::new(move |ctx: &CommandContext<S, R>| {
+            f(ctx).map_err(CommandError::from_execution)
+        }));
         #[cfg(feature = "async")]
         {
             self.async_command = None;
@@ -187,13 +190,17 @@ impl<S, R> ArgumentBuilder<S, R> {
     /// Same as [`Self::executes_async`] but the future returns a
     /// `Result<R, CommandSyntaxError>`.
     #[cfg(feature = "async")]
-    pub fn executes_async_result<F, Fut>(mut self, f: F) -> Self
+    pub fn executes_async_result<F, Fut, E>(mut self, f: F) -> Self
     where
         F: Fn(&CommandContext<S, R>) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = Result<R, CommandSyntaxError>> + Send + 'static,
+        Fut: Future<Output = Result<R, E>> + Send + 'static,
+        E: Into<BoxCommandError> + 'static,
     {
         self.command = None;
-        self.async_command = Some(Arc::new(move |ctx: &CommandContext<S, R>| Box::pin(f(ctx))));
+        self.async_command = Some(Arc::new(move |ctx: &CommandContext<S, R>| {
+            let future = f(ctx);
+            Box::pin(async move { future.await.map_err(CommandError::from_execution) })
+        }));
         self
     }
 

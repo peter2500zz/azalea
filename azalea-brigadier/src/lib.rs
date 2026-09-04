@@ -27,5 +27,6 @@ pub mod prelude {
         builder::{literal_argument_builder::literal, required_argument_builder::argument},
         command_dispatcher::CommandDispatcher,
         context::CommandContext,
+        errors::{BoxCommandError, CommandError, CommandSyntaxError},
     };
 }
