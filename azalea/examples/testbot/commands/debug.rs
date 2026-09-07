@@ -24,28 +24,32 @@ use super::Ctx;
 use crate::commands::Dispatcher;
 
 pub fn register(commands: &mut Dispatcher) {
-    commands.register(literal("ping").executes(|ctx: &Ctx| {
+    commands.register(literal("ping").executes(|ctx: &Ctx| -> eyre::Result<i32> {
         let source = ctx.source.lock();
         source.reply("pong!");
-        1
+        Ok(1)
     }));
     commands.register(
-        literal("say").then(argument("message", greedy_string()).executes(|ctx: &Ctx| {
-            let source = ctx.source.lock();
-            let message = get_string(ctx, "message").unwrap();
-            source.bot.chat(message);
-            1
-        })),
+        literal("say").then(argument("message", greedy_string()).executes(
+            |ctx: &Ctx| -> eyre::Result<i32> {
+                let source = ctx.source.lock();
+                let message = get_string(ctx, "message").unwrap();
+                source.bot.chat(message);
+                Ok(1)
+            },
+        )),
     );
 
-    commands.register(literal("disconnect").executes(|ctx: &Ctx| {
-        let source = ctx.source.lock();
-        source.bot.disconnect();
-        1
-    }));
+    commands.register(
+        literal("disconnect").executes(|ctx: &Ctx| -> eyre::Result<i32> {
+            let source = ctx.source.lock();
+            source.bot.disconnect();
+            Ok(1)
+        }),
+    );
 
     commands.register(
-        literal("whereami").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+        literal("whereami").executes(|ctx: &Ctx| -> eyre::Result<i32> {
             let source = ctx.source.lock();
             let Some(entity) = source.entity() else {
                 source.reply("You aren't in render distance!");
@@ -61,7 +65,7 @@ pub fn register(commands: &mut Dispatcher) {
     );
 
     commands.register(
-        literal("entityid").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+        literal("entityid").executes(|ctx: &Ctx| -> eyre::Result<i32> {
             let source = ctx.source.lock();
             let Some(entity) = source.entity() else {
                 source.reply("You aren't in render distance!");
@@ -85,11 +89,11 @@ pub fn register(commands: &mut Dispatcher) {
         ));
         Ok(1)
     };
-    commands.register(literal("whereareyou").executes_result(whereareyou));
-    commands.register(literal("pos").executes_result(whereareyou));
+    commands.register(literal("whereareyou").executes(whereareyou));
+    commands.register(literal("pos").executes(whereareyou));
 
     commands.register(
-        literal("whoareyou").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+        literal("whoareyou").executes(|ctx: &Ctx| -> eyre::Result<i32> {
             let source = ctx.source.lock();
             source.reply(format!(
                 "I am {} ({}, {})",
@@ -102,7 +106,7 @@ pub fn register(commands: &mut Dispatcher) {
     );
 
     commands.register(
-        literal("getdirection").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+        literal("getdirection").executes(|ctx: &Ctx| -> eyre::Result<i32> {
             let source = ctx.source.lock();
             let direction = source.bot.direction()?;
             source.reply(format!(
@@ -115,7 +119,7 @@ pub fn register(commands: &mut Dispatcher) {
     );
 
     commands.register(
-        literal("health").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+        literal("health").executes(|ctx: &Ctx| -> eyre::Result<i32> {
             let source = ctx.source.lock();
 
             let health = source.bot.health()?;
@@ -125,7 +129,7 @@ pub fn register(commands: &mut Dispatcher) {
     );
 
     commands.register(
-        literal("lookingat").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+        literal("lookingat").executes(|ctx: &Ctx| -> eyre::Result<i32> {
             let source = ctx.source.lock();
 
             let hit_result = source.bot.hit_result()?;
@@ -154,7 +158,7 @@ pub fn register(commands: &mut Dispatcher) {
     );
 
     commands.register(literal("getblock").then(argument("x", integer()).then(
-        argument("y", integer()).then(argument("z", integer()).executes_result(
+        argument("y", integer()).then(argument("z", integer()).executes(
             |ctx: &Ctx| -> eyre::Result<i32> {
                 let source = ctx.source.lock();
                 let x = get_integer(ctx, "x").unwrap();
@@ -169,7 +173,7 @@ pub fn register(commands: &mut Dispatcher) {
         )),
     )));
     commands.register(literal("getfluid").then(argument("x", integer()).then(
-        argument("y", integer()).then(argument("z", integer()).executes_result(
+        argument("y", integer()).then(argument("z", integer()).executes(
             |ctx: &Ctx| -> eyre::Result<i32> {
                 let source = ctx.source.lock();
                 let x = get_integer(ctx, "x").unwrap();
@@ -185,7 +189,7 @@ pub fn register(commands: &mut Dispatcher) {
     )));
 
     commands.register(
-        literal("inventory").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+        literal("inventory").executes(|ctx: &Ctx| -> eyre::Result<i32> {
             let source = ctx.source.lock();
             for item in source.bot.menu()?.slots() {
                 if item.is_empty() {
@@ -202,8 +206,8 @@ pub fn register(commands: &mut Dispatcher) {
         }),
     );
 
-    commands.register(literal("pathfinderstate").executes_result(
-        |ctx: &Ctx| -> eyre::Result<i32> {
+    commands.register(
+        literal("pathfinderstate").executes(|ctx: &Ctx| -> eyre::Result<i32> {
             let source = ctx.source.lock();
             let pathfinder = source.bot.component::<Pathfinder>();
             let Ok(pathfinder) = pathfinder else {
@@ -231,10 +235,10 @@ pub fn register(commands: &mut Dispatcher) {
                 },
             ));
             Ok(1)
-        },
-    ));
-    commands.register(literal("pathfindermoves").executes_result(
-        |ctx: &Ctx| -> eyre::Result<i32> {
+        }),
+    );
+    commands.register(
+        literal("pathfindermoves").executes(|ctx: &Ctx| -> eyre::Result<i32> {
             let source = ctx.source.lock();
 
             let Some(entity) = source.entity() else {
@@ -269,11 +273,11 @@ pub fn register(commands: &mut Dispatcher) {
             }
 
             Ok(1)
-        },
-    ));
+        }),
+    );
 
     commands.register(
-        literal("startuseitem").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+        literal("startuseitem").executes(|ctx: &Ctx| -> eyre::Result<i32> {
             let source = ctx.source.lock();
             source.bot.start_use_item();
             source.reply("Ok!");
@@ -281,7 +285,7 @@ pub fn register(commands: &mut Dispatcher) {
         }),
     );
     commands.register(
-        literal("maxstacksize").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+        literal("maxstacksize").executes(|ctx: &Ctx| -> eyre::Result<i32> {
             let source = ctx.source.lock();
             let max_stack_size = source
                 .bot
@@ -294,7 +298,7 @@ pub fn register(commands: &mut Dispatcher) {
     );
 
     commands.register(
-        literal("dimensions").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+        literal("dimensions").executes(|ctx: &Ctx| -> eyre::Result<i32> {
             let source = ctx.source.lock();
             let bot_dimensions = source.bot.dimensions();
             source.reply(format!("{bot_dimensions:?}"));
@@ -303,7 +307,7 @@ pub fn register(commands: &mut Dispatcher) {
     );
 
     commands.register(
-        literal("players").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+        literal("players").executes(|ctx: &Ctx| -> eyre::Result<i32> {
             let source = ctx.source.lock();
             let player_entities = source
                 .bot
@@ -323,7 +327,7 @@ pub fn register(commands: &mut Dispatcher) {
     );
 
     commands.register(
-        literal("enchants").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+        literal("enchants").executes(|ctx: &Ctx| -> eyre::Result<i32> {
             let source = ctx.source.lock();
             source.bot.with_registry_holder(|r| {
                 let enchants = &r.enchantment;
@@ -334,7 +338,7 @@ pub fn register(commands: &mut Dispatcher) {
     );
 
     commands.register(
-        literal("attributes").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+        literal("attributes").executes(|ctx: &Ctx| -> eyre::Result<i32> {
             let source = ctx.source.lock();
             let attributes = source.bot.attributes();
             println!("attributes: {attributes:?}");
@@ -342,7 +346,7 @@ pub fn register(commands: &mut Dispatcher) {
         }),
     );
 
-    commands.register(literal("debugecsleak").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
+    commands.register(literal("debugecsleak").executes(|ctx: &Ctx| -> eyre::Result<i32> {
         let source = ctx.source.lock();
 
         source.reply("Ok!");
@@ -443,26 +447,24 @@ pub fn register(commands: &mut Dispatcher) {
         Ok(1)
     }));
 
-    commands.register(
-        literal("exit").executes_result(|ctx: &Ctx| -> eyre::Result<i32> {
-            let source = ctx.source.lock();
-            source.reply("bye!");
+    commands.register(literal("exit").executes(|ctx: &Ctx| -> eyre::Result<i32> {
+        let source = ctx.source.lock();
+        source.reply("bye!");
 
-            source.bot.disconnect();
+        source.bot.disconnect();
 
-            let source = ctx.source.clone();
-            thread::spawn(move || {
-                thread::sleep(Duration::from_secs(1));
+        let source = ctx.source.clone();
+        thread::spawn(move || {
+            thread::sleep(Duration::from_secs(1));
 
-                source
-                    .lock()
-                    .bot
-                    .ecs
-                    .write()
-                    .write_message(AppExit::Success);
-            });
+            source
+                .lock()
+                .bot
+                .ecs
+                .write()
+                .write_message(AppExit::Success);
+        });
 
-            Ok(1)
-        }),
-    );
+        Ok(1)
+    }));
 }

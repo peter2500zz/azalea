@@ -5,7 +5,7 @@ use crate::{State, commands::Dispatcher};
 
 pub fn register(commands: &mut Dispatcher) {
     commands.register(
-        literal("killaura").then(argument("enabled", bool()).executes_result(
+        literal("killaura").then(argument("enabled", bool()).executes(
             |ctx: &Ctx| -> eyre::Result<i32> {
                 let enabled = get_bool(ctx, "enabled").unwrap();
                 let source = ctx.source.lock();
