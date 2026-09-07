@@ -29,16 +29,14 @@ pub fn register(commands: &mut Dispatcher) {
         source.reply("pong!");
         Ok(1)
     }));
-    commands.register(
-        literal("say").then(argument("message", greedy_string()).executes(
-            |ctx: &Ctx| -> eyre::Result<i32> {
-                let source = ctx.source.lock();
-                let message = get_string(ctx, "message").unwrap();
-                source.bot.chat(message);
-                Ok(1)
-            },
-        )),
-    );
+    commands.register(literal("say").then(greedy_string("message").executes(
+        |ctx: &Ctx| -> eyre::Result<i32> {
+            let source = ctx.source.lock();
+            let message = get_string(ctx, "message").unwrap();
+            source.bot.chat(message);
+            Ok(1)
+        },
+    )));
 
     commands.register(
         literal("disconnect").executes(|ctx: &Ctx| -> eyre::Result<i32> {
@@ -157,8 +155,8 @@ pub fn register(commands: &mut Dispatcher) {
         }),
     );
 
-    commands.register(literal("getblock").then(argument("x", integer()).then(
-        argument("y", integer()).then(argument("z", integer()).executes(
+    commands.register(
+        literal("getblock").then(integer("x").then(integer("y").then(integer("z").executes(
             |ctx: &Ctx| -> eyre::Result<i32> {
                 let source = ctx.source.lock();
                 let x = get_integer(ctx, "x").unwrap();
@@ -170,10 +168,10 @@ pub fn register(commands: &mut Dispatcher) {
                 source.reply(format!("BlockKind at {block_pos} is {block:?}"));
                 Ok(1)
             },
-        )),
-    )));
-    commands.register(literal("getfluid").then(argument("x", integer()).then(
-        argument("y", integer()).then(argument("z", integer()).executes(
+        )))),
+    );
+    commands.register(
+        literal("getfluid").then(integer("x").then(integer("y").then(integer("z").executes(
             |ctx: &Ctx| -> eyre::Result<i32> {
                 let source = ctx.source.lock();
                 let x = get_integer(ctx, "x").unwrap();
@@ -185,8 +183,8 @@ pub fn register(commands: &mut Dispatcher) {
                 source.reply(format!("Fluid at {block_pos} is {block:?}"));
                 Ok(1)
             },
-        )),
-    )));
+        )))),
+    );
 
     commands.register(
         literal("inventory").executes(|ctx: &Ctx| -> eyre::Result<i32> {
