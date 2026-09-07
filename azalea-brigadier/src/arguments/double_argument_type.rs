@@ -7,10 +7,13 @@ use crate::{
     string_reader::StringReader,
 };
 
-#[derive(Default)]
-struct Double {
-    pub minimum: Option<f64>,
-    pub maximum: Option<f64>,
+/// A standalone f64 parser with optional inclusive bounds.
+/// Use [`crate::parsers::double`] to construct it, or [`double`] for a named
+/// node.
+#[derive(Clone, Debug, Default)]
+pub struct Double {
+    minimum: Option<f64>,
+    maximum: Option<f64>,
 }
 
 impl ArgumentType for Double {
@@ -48,9 +51,15 @@ impl ArgumentType for Double {
     }
 }
 
-pub fn double() -> impl ArgumentType {
-    Double::default()
+/// Create a named f64 argument. Bounds may be configured before or after
+/// common node methods such as `describe` and `executes`.
+pub fn double<S, R>(
+    name: impl Into<String>,
+) -> crate::builder::argument_builder::ArgumentBuilder<S, R, Double> {
+    crate::builder::required_argument_builder::argument(name, Double::default())
 }
+
+super::numeric::impl_numeric_config!(Double, f64);
 pub fn get_double<S, R>(context: &CommandContext<S, R>, name: &str) -> Option<f64> {
     context
         .argument(name)

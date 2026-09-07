@@ -137,7 +137,7 @@ fn get_completion_suggestions_sub_commands() {
 #[test]
 fn get_completion_suggestions_after_terminal_separator_run() {
     let mut subject = CommandDispatcher::<()>::new();
-    subject.register(literal("kick").then(argument("player", word()).then(literal("reason"))));
+    subject.register(literal("kick").then(word("player").then(literal("reason"))));
 
     for input in ["kick Bob ", "kick Bob  ", "kick Bob   "] {
         let result = CommandDispatcher::get_completion_suggestions(subject.parse(input.into(), ()));
@@ -399,9 +399,8 @@ fn get_completion_suggestions_redirect_partial_with_input_offset() {
 fn get_completion_suggestions_redirect_lots() {
     let mut subject = CommandDispatcher::<()>::new();
     let loop_ = subject.register(literal("redirect"));
-    subject.register(
-        literal("redirect").then(literal("loop").then(argument("loop", integer()).redirect(loop_))),
-    );
+    subject
+        .register(literal("redirect").then(literal("loop").then(integer("loop").redirect(loop_))));
 
     let result = CommandDispatcher::get_completion_suggestions(
         subject.parse("redirect loop 1 loop 02 loop 003 ".into(), ()),
@@ -420,8 +419,8 @@ fn get_completion_suggestions_execute_simulation() {
     let execute = subject.register(literal("execute"));
     subject.register(
         literal("execute")
-            .then(literal("as").then(argument("name", word()).redirect(execute.clone())))
-            .then(literal("store").then(argument("name", word()).redirect(execute)))
+            .then(literal("as").then(word("name").redirect(execute.clone())))
+            .then(literal("store").then(word("name").redirect(execute)))
             .then(literal("run").executes(|_| Ok::<_, std::convert::Infallible>(0))),
     );
 
@@ -443,7 +442,7 @@ fn get_completion_suggestions_execute_simulation_partial() {
                     .then(literal("bar").redirect(execute.clone()))
                     .then(literal("baz").redirect(execute.clone())),
             )
-            .then(literal("store").then(argument("name", word()).redirect(execute)))
+            .then(literal("store").then(word("name").redirect(execute)))
             .then(literal("run").executes(|_| Ok::<_, std::convert::Infallible>(0))),
     );
 

@@ -14,22 +14,21 @@ use crate::{
 
 /// An argument node type.
 ///
-/// The `T` type parameter is the type of the argument, which can be anything.
+/// This is the runtime representation; the concrete parser is retained by
+/// its builder until the node is built.
 pub struct Argument<S, R> {
     pub name: String,
     parser: Arc<dyn ArgumentType + Send + Sync>,
-    // Set through `ArgumentBuilder::suggests`, which lives in the sibling
-    // module.
     pub(crate) custom_suggestions: Option<Arc<dyn SuggestionProvider<S, R> + Send + Sync>>,
 }
 impl<S, R> Argument<S, R> {
     pub fn new(
-        name: &str,
+        name: impl Into<String>,
         parser: Arc<dyn ArgumentType + Send + Sync>,
         custom_suggestions: Option<Arc<dyn SuggestionProvider<S, R> + Send + Sync>>,
     ) -> Self {
         Self {
-            name: name.to_owned(),
+            name: name.into(),
             parser,
             custom_suggestions,
         }
@@ -71,12 +70,18 @@ impl<S, R> Debug for Argument<S, R> {
     }
 }
 
-/// Shortcut for creating a new argument builder node.
-pub fn argument<S, R>(
-    name: &str,
-    parser: impl ArgumentType + Send + Sync + 'static,
-) -> ArgumentBuilder<S, R> {
-    ArgumentBuilder::new(Argument::new(name, Arc::new(parser), None).into())
+/// Create a named argument from a custom or standalone parser.
+///
+/// Built-in arguments have shorter constructors such as [`integer("count")`]
+/// and [`word("player")`]. Standalone parsers live in [`crate::parsers`].
+///
+/// [`integer("count")`]: crate::prelude::integer
+/// [`word("player")`]: crate::prelude::word
+pub fn argument<S, R, P: ArgumentType + Send + Sync + 'static>(
+    name: impl Into<String>,
+    parser: P,
+) -> ArgumentBuilder<S, R, P> {
+    ArgumentBuilder::new(name.into(), parser)
 }
 
 impl<S, R> Clone for Argument<S, R> {

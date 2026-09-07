@@ -9,6 +9,7 @@ pub mod context;
 pub mod errors;
 pub mod modifier;
 pub mod parse_results;
+pub mod parsers;
 pub mod result_consumer;
 pub mod string_reader;
 pub mod suggestion;
@@ -17,7 +18,7 @@ pub mod tree;
 pub mod prelude {
     pub use crate::{
         arguments::{
-            bool_argument_type::{bool, get_bool},
+            bool_argument_type::{boolean, get_bool},
             double_argument_type::{double, get_double},
             float_argument_type::{float, get_float},
             integer_argument_type::{get_integer, integer},

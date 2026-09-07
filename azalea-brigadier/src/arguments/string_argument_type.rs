@@ -3,6 +3,8 @@ use std::sync::Arc;
 use super::{ArgumentType, ParsedValue};
 use crate::{context::CommandContext, errors::CommandSyntaxError, string_reader::StringReader};
 
+/// A standalone string parser with an explicit tokenization policy.
+#[derive(Clone, Copy, Debug)]
 pub enum StringArgument {
     /// Match up until the next space.
     SingleWord,
@@ -40,17 +42,23 @@ impl ArgumentType for StringArgument {
 }
 
 /// Match up until the next space.
-pub fn word() -> impl ArgumentType {
-    StringArgument::SingleWord
+pub fn word<S, R>(
+    name: impl Into<String>,
+) -> crate::builder::argument_builder::ArgumentBuilder<S, R, StringArgument> {
+    crate::builder::required_argument_builder::argument(name, StringArgument::SingleWord)
 }
 /// Same as single word unless the argument is wrapped in quotes, in which case
 /// it can contain spaces.
-pub fn string() -> impl ArgumentType {
-    StringArgument::QuotablePhrase
+pub fn string<S, R>(
+    name: impl Into<String>,
+) -> crate::builder::argument_builder::ArgumentBuilder<S, R, StringArgument> {
+    crate::builder::required_argument_builder::argument(name, StringArgument::QuotablePhrase)
 }
 /// Match the rest of the input.
-pub fn greedy_string() -> impl ArgumentType {
-    StringArgument::GreedyPhrase
+pub fn greedy_string<S, R>(
+    name: impl Into<String>,
+) -> crate::builder::argument_builder::ArgumentBuilder<S, R, StringArgument> {
+    crate::builder::required_argument_builder::argument(name, StringArgument::GreedyPhrase)
 }
 pub fn get_string<S, R>(context: &CommandContext<S, R>, name: &str) -> Option<String> {
     context

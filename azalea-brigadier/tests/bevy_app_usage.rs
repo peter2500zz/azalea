@@ -56,9 +56,10 @@ impl FromWorld for DispatchStorage {
                 .register(literal("spawn_entity").executes(DispatchStorage::command_spawn_entity));
 
             // Register the "spawn_entity_num" command
-            dispatch.register(literal("spawn_entity_num").then(
-                argument("entities", integer()).executes(DispatchStorage::command_spawn_entity_num),
-            ));
+            dispatch.register(
+                literal("spawn_entity_num")
+                    .then(integer("entities").executes(DispatchStorage::command_spawn_entity_num)),
+            );
         }
 
         Self {

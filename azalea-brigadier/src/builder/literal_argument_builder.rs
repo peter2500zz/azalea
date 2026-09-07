@@ -18,7 +18,14 @@ impl<S, R> From<Literal> for ArgumentBuilderType<S, R> {
     }
 }
 
-/// Shortcut for creating a new literal builder node.
-pub fn literal<S, R>(value: &str) -> ArgumentBuilder<S, R> {
-    ArgumentBuilder::new(ArgumentBuilderType::Literal(Literal::new(value)))
+/// The construction-time kind of a literal node.
+///
+/// Literals have no parser, so argument-only methods such as `suggests` and
+/// numeric bounds are unavailable on their builders.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LiteralKind;
+
+/// Create a literal node with the given name.
+pub fn literal<S, R>(value: impl Into<String>) -> ArgumentBuilder<S, R> {
+    ArgumentBuilder::new(value.into(), LiteralKind)
 }

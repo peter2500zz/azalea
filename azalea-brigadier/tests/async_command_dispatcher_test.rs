@@ -10,7 +10,7 @@ use std::{
 
 use azalea_brigadier::{
     arguments::integer_argument_type::get_integer,
-    builder::{literal_argument_builder::literal, required_argument_builder::argument},
+    builder::literal_argument_builder::literal,
     command_dispatcher::CommandDispatcher,
     context::CommandContext,
     errors::{BuiltInError, CommandResult},
@@ -34,8 +34,7 @@ fn a_named_async_function_can_be_registered_directly() {
 
     let mut dispatcher = CommandDispatcher::<(), i32>::new();
     dispatcher.register(
-        literal("double")
-            .then(argument("value", azalea_brigadier::prelude::integer()).executes_async(double)),
+        literal("double").then(azalea_brigadier::prelude::integer("value").executes_async(double)),
     );
 
     let future = send(dispatcher.execute_async("double 21", ()));
@@ -65,10 +64,10 @@ fn async_execution_ignores_terminal_spaces_after_an_executable_node() {
     let mut dispatcher = CommandDispatcher::<(), i32>::new();
     dispatcher.register(
         literal("kick").then(
-            argument("player", azalea_brigadier::prelude::word())
+            azalea_brigadier::prelude::word("player")
                 .executes_async(|_| async { Ok::<_, Infallible>(1) })
                 .then(
-                    argument("reason", azalea_brigadier::prelude::greedy_string())
+                    azalea_brigadier::prelude::greedy_string("reason")
                         .executes_async(|_| async { Ok::<_, Infallible>(2) }),
                 ),
         ),

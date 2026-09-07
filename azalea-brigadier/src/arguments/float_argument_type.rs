@@ -7,10 +7,13 @@ use crate::{
     string_reader::StringReader,
 };
 
-#[derive(Default)]
-struct Float {
-    pub minimum: Option<f32>,
-    pub maximum: Option<f32>,
+/// A standalone f32 parser with optional inclusive bounds.
+/// Use [`crate::parsers::float`] to construct it, or [`float`] for a named
+/// node.
+#[derive(Clone, Debug, Default)]
+pub struct Float {
+    minimum: Option<f32>,
+    maximum: Option<f32>,
 }
 
 impl ArgumentType for Float {
@@ -48,9 +51,15 @@ impl ArgumentType for Float {
     }
 }
 
-pub fn float() -> impl ArgumentType {
-    Float::default()
+/// Create a named f32 argument. Bounds may be configured before or after
+/// common node methods such as `describe` and `executes`.
+pub fn float<S, R>(
+    name: impl Into<String>,
+) -> crate::builder::argument_builder::ArgumentBuilder<S, R, Float> {
+    crate::builder::required_argument_builder::argument(name, Float::default())
 }
+
+super::numeric::impl_numeric_config!(Float, f32);
 pub fn get_float<S, R>(context: &CommandContext<S, R>, name: &str) -> Option<f32> {
     context
         .argument(name)

@@ -7,10 +7,12 @@ use crate::{
     string_reader::StringReader,
 };
 
-#[derive(Default)]
-struct Long {
-    pub minimum: Option<i64>,
-    pub maximum: Option<i64>,
+/// A standalone i64 parser with optional inclusive bounds.
+/// Use [`crate::parsers::long`] to construct it, or [`long`] for a named node.
+#[derive(Clone, Debug, Default)]
+pub struct Long {
+    minimum: Option<i64>,
+    maximum: Option<i64>,
 }
 
 impl ArgumentType for Long {
@@ -48,9 +50,15 @@ impl ArgumentType for Long {
     }
 }
 
-pub fn long() -> impl ArgumentType {
-    Long::default()
+/// Create a named i64 argument. Bounds may be configured before or after
+/// common node methods such as `describe` and `executes`.
+pub fn long<S, R>(
+    name: impl Into<String>,
+) -> crate::builder::argument_builder::ArgumentBuilder<S, R, Long> {
+    crate::builder::required_argument_builder::argument(name, Long::default())
 }
+
+super::numeric::impl_numeric_config!(Long, i64);
 pub fn get_long<S, R>(context: &CommandContext<S, R>, name: &str) -> Option<i64> {
     context
         .argument(name)

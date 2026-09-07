@@ -111,9 +111,7 @@ fn the_description_is_readable_from_the_tree() {
         .build();
     assert_eq!(built.description.as_deref(), Some("does the foo thing"));
 
-    let argument = argument::<(), i32>("bar", integer())
-        .describe("how many times")
-        .build();
+    let argument = integer::<(), i32>("bar").describe("how many times").build();
     assert_eq!(argument.description.as_deref(), Some("how many times"));
 }
 
@@ -126,7 +124,7 @@ fn an_argument_may_hand_its_suggestions_to_a_closure() {
     let mut subject = CommandDispatcher::<bool>::new();
     subject.register(
         literal("paint").then(
-            argument("colour", word())
+            word("colour")
                 .suggests(|ctx: CommandContext<bool>, builder: SuggestionsBuilder| {
                     // The source is right there, so the answer can depend on it.
                     if *ctx.source {
@@ -149,15 +147,4 @@ fn an_argument_may_hand_its_suggestions_to_a_closure() {
 
     assert_eq!(offered(true), vec!["green", "red"]);
     assert_eq!(offered(false), vec!["grey"]);
-}
-
-/// Literals suggest themselves; asking a provider about one is a mistake worth
-/// catching at build time rather than silently ignoring.
-#[test]
-#[should_panic(expected = "literal")]
-fn suggests_on_a_literal_is_rejected() {
-    use azalea_brigadier::{context::CommandContext, suggestion::SuggestionsBuilder};
-
-    let _ = literal::<(), i32>("paint")
-        .suggests(|_: CommandContext<(), i32>, builder: SuggestionsBuilder| builder.build());
 }

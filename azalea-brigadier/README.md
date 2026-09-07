@@ -12,7 +12,7 @@ use std::sync::Arc;
 struct CommandSource {}
 
 let mut subject = CommandDispatcher::new();
-subject.register(literal("foo").executes(|_| 42));
+subject.register(literal("foo").executes(|_| -> CommandResult { Ok(42) }));
 
 assert_eq!(
     subject

@@ -7,8 +7,13 @@ use std::{
 
 use parking_lot::RwLock;
 
-use super::{literal_argument_builder::Literal, required_argument_builder::Argument};
+use super::{
+    kind::NodeKind,
+    literal_argument_builder::{Literal, LiteralKind},
+    required_argument_builder::Argument,
+};
 use crate::{
+    arguments::ArgumentType,
     context::CommandContext,
     errors::{BoxCommandError, CommandError},
     modifier::RedirectModifier,
@@ -32,9 +37,17 @@ impl<S, R> Clone for ArgumentBuilderType<S, R> {
     }
 }
 
-/// A node that hasn't yet been built.
-pub struct ArgumentBuilder<S, R = i32> {
-    arguments: CommandNode<S, R>,
+/// A node under construction, retaining its concrete parser type `P`.
+///
+/// Common setters return `Self`, so parser-specific configuration remains
+/// available after descriptions, requirements, handlers, or children are added.
+/// Parsers are erased only when the node is built or attached to a parent.
+/// The default kind is a literal; custom arguments infer `P` from their parser.
+pub struct ArgumentBuilder<S, R = i32, P = LiteralKind> {
+    name: String,
+    parser: P,
+    children: Vec<CommandNode<S, R>>,
+    suggestions: Option<Arc<dyn SuggestionProvider<S, R> + Send + Sync>>,
 
     description: Option<String>,
     command: Command<S, R>,
@@ -48,13 +61,13 @@ pub struct ArgumentBuilder<S, R = i32> {
 }
 
 /// A node that isn't yet built.
-impl<S, R> ArgumentBuilder<S, R> {
-    pub fn new(value: ArgumentBuilderType<S, R>) -> Self {
+impl<S, R, P> ArgumentBuilder<S, R, P> {
+    pub(crate) fn new(name: String, parser: P) -> Self {
         Self {
-            arguments: CommandNode {
-                value,
-                ..Default::default()
-            },
+            name,
+            parser,
+            children: Vec::new(),
+            suggestions: None,
             description: None,
             command: None,
             #[cfg(feature = "async")]
@@ -75,15 +88,15 @@ impl<S, R> ArgumentBuilder<S, R> {
     ///     .then(literal("bar").executes(|_: &CommandContext<()>| -> CommandResult { Ok(42) }))
     /// # ;
     /// ```
-    pub fn then(self, argument: ArgumentBuilder<S, R>) -> Self {
-        self.then_built(argument.build())
+    pub fn then(self, argument: impl Into<CommandNode<S, R>>) -> Self {
+        self.then_built(argument.into())
     }
 
     /// Add an already built child node to this node.
     ///
     /// You should usually use [`Self::then`] instead.
     pub fn then_built(mut self, argument: CommandNode<S, R>) -> Self {
-        self.arguments.add_child(&Arc::new(RwLock::new(argument)));
+        self.children.push(argument);
         self
     }
 
@@ -132,7 +145,7 @@ impl<S, R> ArgumentBuilder<S, R> {
     /// # let _ = command;
     /// ```
     ///
-    /// So is a future carrying thread-local state:
+    /// A future carrying thread-local state across an await is rejected:
     ///
     /// ```compile_fail
     /// # use std::{rc::Rc, sync::Arc};
@@ -195,54 +208,16 @@ impl<S, R> ArgumentBuilder<S, R> {
     /// # }
     /// # let mut subject = CommandDispatcher::<CommandSource>::new();
     /// # subject.register(
-    /// literal("foo")
-    ///     .requires(|s: &CommandSource| s.opped)
-    ///     // ...
+    /// literal("foo").requires(|s: &CommandSource| s.opped)
+    /// // ...
     ///     # .executes(|_: &CommandContext<CommandSource>| -> CommandResult { Ok(42) })
     /// # );
+    /// ```
     pub fn requires<F>(mut self, requirement: F) -> Self
     where
         F: Fn(&S) -> bool + Send + Sync + 'static,
     {
         self.requirement = Arc::new(requirement);
-        self
-    }
-
-    /// Decide what to suggest for this argument, instead of asking its
-    /// [`ArgumentType`].
-    ///
-    /// This is where suggestions that depend on the source belong — the names
-    /// currently in a registry, the files in a directory, whatever the caller
-    /// is allowed to see. A closure is a provider, so the usual form is:
-    ///
-    /// ```
-    /// # use azalea_brigadier::prelude::*;
-    /// # use azalea_brigadier::{context::CommandContext, suggestion::SuggestionsBuilder};
-    /// # let mut subject = CommandDispatcher::<()>::new();
-    /// # subject.register(
-    /// argument("colour", word())
-    ///     .suggests(|_ctx: CommandContext<()>, builder: SuggestionsBuilder| {
-    ///         builder.suggest("red").suggest("green").build()
-    ///     })
-    ///     .executes(|_: &CommandContext<()>| -> CommandResult { Ok(42) })
-    /// # );
-    /// ```
-    ///
-    /// # Panics
-    ///
-    /// If this node is a literal. Literals suggest themselves and have nothing
-    /// to ask a provider about; Mojang's brigadier puts this method on the
-    /// required-argument builder alone, where the type system rules it out.
-    ///
-    /// [`ArgumentType`]: crate::arguments::ArgumentType
-    pub fn suggests(
-        mut self,
-        provider: impl SuggestionProvider<S, R> + Send + Sync + 'static,
-    ) -> Self {
-        let ArgumentBuilderType::Argument(argument) = &mut self.arguments.value else {
-            panic!("ArgumentBuilder::suggests() called on a literal node");
-        };
-        argument.custom_suggestions = Some(Arc::new(provider));
         self
     }
 
@@ -264,7 +239,7 @@ impl<S, R> ArgumentBuilder<S, R> {
         modifier: Option<Arc<RedirectModifier<S, R>>>,
         fork: bool,
     ) -> Self {
-        if !self.arguments.children.is_empty() {
+        if !self.children.is_empty() {
             panic!("Cannot forward a node with children");
         }
         self.target = Some(target);
@@ -273,15 +248,20 @@ impl<S, R> ArgumentBuilder<S, R> {
         self
     }
 
-    pub fn arguments(&self) -> &CommandNode<S, R> {
-        &self.arguments
+    /// Children already attached to this builder, in insertion order.
+    /// Nodes with matching names are merged when this builder is built.
+    pub fn children(&self) -> &[CommandNode<S, R>] {
+        &self.children
     }
 
     /// Manually build this node into a [`CommandNode`]. You probably don't need
     /// to do this yourself.
-    pub fn build(self) -> CommandNode<S, R> {
+    pub fn build(self) -> CommandNode<S, R>
+    where
+        P: NodeKind<S, R>,
+    {
         let mut result = CommandNode {
-            value: self.arguments.value,
+            value: self.parser.into_value(self.name, self.suggestions),
             description: self.description,
             command: self.command,
             #[cfg(feature = "async")]
@@ -295,18 +275,20 @@ impl<S, R> ArgumentBuilder<S, R> {
             literals: Default::default(),
         };
 
-        for argument in self.arguments.children.values() {
-            result.add_child(argument);
+        for argument in self.children {
+            result.add_child(&Arc::new(RwLock::new(argument)));
         }
 
         result
     }
 }
 
-impl<S, R> Debug for ArgumentBuilder<S, R> {
+impl<S, R, P> Debug for ArgumentBuilder<S, R, P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ArgumentBuilder")
-            .field("arguments", &self.arguments)
+            .field("name", &self.name)
+            .field("parser", &std::any::type_name::<P>())
+            .field("children", &self.children)
             // .field("command", &self.command)
             // .field("requirement", &self.requirement)
             .field("target", &self.target)
@@ -315,10 +297,13 @@ impl<S, R> Debug for ArgumentBuilder<S, R> {
             .finish()
     }
 }
-impl<S, R> Clone for ArgumentBuilder<S, R> {
+impl<S, R, P: Clone> Clone for ArgumentBuilder<S, R, P> {
     fn clone(&self) -> Self {
         Self {
-            arguments: self.arguments.clone(),
+            name: self.name.clone(),
+            parser: self.parser.clone(),
+            children: self.children.clone(),
+            suggestions: self.suggestions.clone(),
             description: self.description.clone(),
             command: self.command.clone(),
             #[cfg(feature = "async")]
@@ -328,5 +313,70 @@ impl<S, R> Clone for ArgumentBuilder<S, R> {
             forks: self.forks,
             modifier: self.modifier.clone(),
         }
+    }
+}
+
+impl<S, R, P: ArgumentType + Send + Sync + 'static> ArgumentBuilder<S, R, P> {
+    /// Decide what to suggest for this argument, instead of asking its
+    /// [`ArgumentType`].
+    ///
+    /// This is where suggestions that depend on the source belong — the names
+    /// currently in a registry, the files in a directory, whatever the caller
+    /// is allowed to see. A closure is a provider, so the usual form is:
+    ///
+    /// ```
+    /// # use azalea_brigadier::prelude::*;
+    /// # use azalea_brigadier::{context::CommandContext, suggestion::SuggestionsBuilder};
+    /// # let mut subject = CommandDispatcher::<()>::new();
+    /// # subject.register(
+    /// word("colour")
+    ///     .suggests(|_ctx: CommandContext<()>, builder: SuggestionsBuilder| {
+    ///         builder.suggest("red").suggest("green").build()
+    ///     })
+    ///     .executes(|_: &CommandContext<()>| -> CommandResult { Ok(42) })
+    /// # );
+    /// ```
+    ///
+    /// This method exists only on argument builders, not literals.
+    ///
+    /// ```compile_fail
+    /// use azalea_brigadier::{prelude::*, suggestion::SuggestionsBuilder};
+    /// literal::<(), i32>("paint").suggests(
+    ///     |_: CommandContext<()>, builder: SuggestionsBuilder| builder.build()
+    /// );
+    /// ```
+    ///
+    /// [`ArgumentType`]: crate::arguments::ArgumentType
+    pub fn suggests(
+        mut self,
+        provider: impl SuggestionProvider<S, R> + Send + Sync + 'static,
+    ) -> Self {
+        self.suggestions = Some(Arc::new(provider));
+        self
+    }
+
+    /// Configure a custom parser by value without erasing its concrete type.
+    ///
+    /// The closure runs once while constructing the command, not on execution.
+    ///
+    /// ```
+    /// use azalea_brigadier::{parsers, prelude::*};
+    /// let mut dispatcher = CommandDispatcher::<()>::new();
+    /// dispatcher.register(
+    ///     argument("count", parsers::integer())
+    ///         .configure_parser(|parser| parser.range(1..=10))
+    ///         .executes(|ctx| -> CommandResult { Ok(get_integer(ctx, "count").unwrap()) }),
+    /// );
+    /// assert_eq!(dispatcher.execute("3", ()).unwrap(), 3);
+    /// ```
+    pub fn configure_parser(mut self, configure: impl FnOnce(P) -> P) -> Self {
+        self.parser = configure(self.parser);
+        self
+    }
+}
+
+impl<S, R, P: NodeKind<S, R>> From<ArgumentBuilder<S, R, P>> for CommandNode<S, R> {
+    fn from(builder: ArgumentBuilder<S, R, P>) -> Self {
+        builder.build()
     }
 }

@@ -7,10 +7,13 @@ use crate::{
     string_reader::StringReader,
 };
 
-#[derive(Default)]
-struct Integer {
-    pub minimum: Option<i32>,
-    pub maximum: Option<i32>,
+/// A standalone i32 parser with optional inclusive bounds.
+/// Use [`crate::parsers::integer`] to construct it, or [`integer`] for a named
+/// node.
+#[derive(Clone, Debug, Default)]
+pub struct Integer {
+    minimum: Option<i32>,
+    maximum: Option<i32>,
 }
 
 impl ArgumentType for Integer {
@@ -48,9 +51,15 @@ impl ArgumentType for Integer {
     }
 }
 
-pub fn integer() -> impl ArgumentType {
-    Integer::default()
+/// Create a named i32 argument. Bounds may be configured before or after
+/// common node methods such as `describe` and `executes`.
+pub fn integer<S, R>(
+    name: impl Into<String>,
+) -> crate::builder::argument_builder::ArgumentBuilder<S, R, Integer> {
+    crate::builder::required_argument_builder::argument(name, Integer::default())
 }
+
+super::numeric::impl_numeric_config!(Integer, i32);
 pub fn get_integer<S, R>(context: &CommandContext<S, R>, name: &str) -> Option<i32> {
     context
         .argument(name)

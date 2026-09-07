@@ -14,13 +14,11 @@ fn success(value: i32) -> Result<i32, Infallible> {
 /// A dispatcher with a single `echo <value>` taking the rest of the line.
 fn greedy_dispatcher() -> CommandDispatcher<CommandSource> {
     let mut subject = CommandDispatcher::new();
-    subject.register(
-        literal("echo").then(argument("value", greedy_string()).executes(
-            |ctx: &CommandContext<CommandSource>| {
-                success(i32::from(get_string(ctx, "value").is_some()))
-            },
-        )),
-    );
+    subject.register(literal("echo").then(greedy_string("value").executes(
+        |ctx: &CommandContext<CommandSource>| {
+            success(i32::from(get_string(ctx, "value").is_some()))
+        },
+    )));
     subject
 }
 
@@ -28,12 +26,12 @@ fn greedy_dispatcher() -> CommandDispatcher<CommandSource> {
 /// taking an optionally quoted phrase.
 fn word_dispatcher() -> CommandDispatcher<CommandSource> {
     let mut subject = CommandDispatcher::new();
-    subject.register(literal("say").then(argument("value", word()).executes(
+    subject.register(literal("say").then(word("value").executes(
         |ctx: &CommandContext<CommandSource>| {
             success(i32::from(get_string(ctx, "value").is_some()))
         },
     )));
-    subject.register(literal("quote").then(argument("value", string()).executes(
+    subject.register(literal("quote").then(string("value").executes(
         |ctx: &CommandContext<CommandSource>| {
             success(i32::from(
                 get_string(ctx, "value").as_deref() == Some("你好 世界"),

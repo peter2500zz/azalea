@@ -8,8 +8,9 @@ use crate::{
     suggestion::{Suggestions, SuggestionsBuilder},
 };
 
-#[derive(Default)]
-struct Boolean;
+/// A standalone boolean parser, including true/false completion.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Boolean;
 
 impl ArgumentType for Boolean {
     fn parse(&self, reader: &mut StringReader) -> Result<Arc<ParsedValue>, CommandSyntaxError> {
@@ -31,8 +32,11 @@ impl ArgumentType for Boolean {
     }
 }
 
-pub fn bool() -> impl ArgumentType {
-    Boolean
+/// Create a named boolean argument with true/false completion.
+pub fn boolean<S, R>(
+    name: impl Into<String>,
+) -> crate::builder::argument_builder::ArgumentBuilder<S, R, Boolean> {
+    crate::builder::required_argument_builder::argument(name, Boolean)
 }
 pub fn get_bool<S, R>(context: &CommandContext<S, R>, name: &str) -> Option<bool> {
     context

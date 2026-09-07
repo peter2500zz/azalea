@@ -2,7 +2,7 @@ use std::{convert::Infallible, sync::Arc};
 
 use azalea_brigadier::{
     arguments::integer_argument_type::integer,
-    builder::{literal_argument_builder::literal, required_argument_builder::argument},
+    builder::literal_argument_builder::literal,
     command_dispatcher::CommandDispatcher,
     context::CommandContext,
     errors::{BuiltInError, CommandSyntaxError},
@@ -161,7 +161,7 @@ fn parse_incomplete_literal() {
 #[test]
 fn parse_incomplete_argument() {
     let mut subject = CommandDispatcher::new();
-    subject.register(literal("foo").then(argument("bar", integer()).executes(|_| success(42))));
+    subject.register(literal("foo").then(integer("bar").executes(|_| success(42))));
 
     let parse = subject.parse("foo ".into(), &CommandSource {});
     assert_eq!(parse.reader.remaining(), " ");
@@ -173,12 +173,9 @@ fn execute_ignores_terminal_spaces_after_an_executable_node() {
     let mut subject = CommandDispatcher::new();
     subject.register(
         literal("kick").then(
-            argument("player", azalea_brigadier::prelude::word())
+            azalea_brigadier::prelude::word("player")
                 .executes(|_| success(1))
-                .then(
-                    argument("reason", azalea_brigadier::prelude::greedy_string())
-                        .executes(|_| success(2)),
-                ),
+                .then(azalea_brigadier::prelude::greedy_string("reason").executes(|_| success(2))),
         ),
     );
 
@@ -210,9 +207,10 @@ fn execute_ignores_terminal_spaces_after_an_executable_node() {
 #[test]
 fn terminal_spaces_do_not_satisfy_a_required_child() {
     let mut subject = CommandDispatcher::new();
-    subject.register(literal("say").then(
-        argument("message", azalea_brigadier::prelude::greedy_string()).executes(|_| success(1)),
-    ));
+    subject.register(
+        literal("say")
+            .then(azalea_brigadier::prelude::greedy_string("message").executes(|_| success(1))),
+    );
 
     for input in ["say ", "say  ", "say   "] {
         assert!(
@@ -229,11 +227,8 @@ fn execute_ambiguous_parent_subcommand() {
 
     subject.register(
         literal("test")
-            .then(argument("incorrect", integer()).executes(|_| success(42)))
-            .then(
-                argument("right", integer())
-                    .then(argument("sub", integer()).executes(|_| success(100))),
-            ),
+            .then(integer("incorrect").executes(|_| success(42)))
+            .then(integer("right").then(integer("sub").executes(|_| success(100)))),
     );
 
     assert_eq!(subject.execute("test 1 2", &CommandSource {}).unwrap(), 100);
@@ -245,11 +240,8 @@ fn execute_ambiguous_parent_subcommand_via_redirect() {
 
     let real = subject.register(
         literal("test")
-            .then(argument("incorrect", integer()).executes(|_| success(42)))
-            .then(
-                argument("right", integer())
-                    .then(argument("sub", integer()).executes(|_| success(100))),
-            ),
+            .then(integer("incorrect").executes(|_| success(42)))
+            .then(integer("right").then(integer("sub").executes(|_| success(100)))),
     );
 
     subject.register(literal("redirect").redirect(real));
@@ -347,7 +339,7 @@ fn execute_orphaned_subcommand() {
 
     subject.register(
         literal("foo")
-            .then(argument("bar", integer()))
+            .then(integer("bar"))
             .executes(|_| success(42)),
     );
 
@@ -377,7 +369,7 @@ fn parse_no_space_separator() {
 
     subject.register(
         literal("foo")
-            .then(argument("bar", integer()))
+            .then(integer("bar"))
             .executes(|_| success(42)),
     );
 
@@ -395,7 +387,7 @@ fn execute_invalid_subcommand() {
 
     subject.register(
         literal("foo")
-            .then(argument("bar", integer()))
+            .then(integer("bar"))
             .executes(|_| success(42)),
     );
 
