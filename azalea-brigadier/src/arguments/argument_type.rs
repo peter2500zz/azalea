@@ -21,6 +21,10 @@ pub type ParsedValue = dyn Any;
 /// Implement [`crate::builder::CommandArgument`] to choose a named builder and
 /// expose `Parser::arg(name)` / `parser.into_arg(name)`. Keeping construction
 /// in a separate trait allows parsers to remain usable as `dyn ArgumentType`.
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` does not implement command argument parsing",
+    note = "Implement ArgumentType::parse for the parser. CommandArgument selects a named builder; it does not replace the parsing implementation."
+)]
 pub trait ArgumentType {
     fn parse(&self, reader: &mut StringReader) -> Result<Arc<ParsedValue>, CommandSyntaxError>;
 

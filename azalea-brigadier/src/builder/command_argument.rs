@@ -127,6 +127,23 @@ use crate::arguments::ArgumentType;
 /// let node = StringArgument::GreedyPhrase.into_arg::<(), i32>("text");
 /// assert_eq!(node.build().name(), "text");
 /// ```
+///
+/// # Registration errors
+///
+/// Implement both [`ArgumentType`] (parsing) and this trait (the named builder
+/// factory). Import this trait to call `Parser::arg` or `parser.into_arg`.
+/// Import [`CommandBuilder`] for the common methods on a custom wrapper, or use
+/// the prelude for both. A parser's inherent methods are not automatically
+/// forwarded to its builder; implement fluent setters on the chosen wrapper.
+///
+/// If `arg` reports a missing `Default` implementation, do not invent a default
+/// for application state: construct the parser and use `into_arg` instead.
+/// If an inherent `arg` shadows the trait method, use
+/// `<Parser as CommandArgument>::arg(...)`.
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` does not provide a named command argument builder",
+    note = "Implement ArgumentType for parsing and CommandArgument to select the builder. Import CommandArgument (or the prelude) to use ::arg(name) or .into_arg(name)."
+)]
 pub trait CommandArgument: ArgumentType + Sized + Send + Sync + 'static {
     /// The concrete builder returned by both naming operations.
     type Builder<S, R>: CommandBuilder<Source = S, Output = R, Kind = Self>

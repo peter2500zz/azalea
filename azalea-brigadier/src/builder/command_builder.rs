@@ -20,6 +20,10 @@ use crate::{
 /// Neither `Deref` nor cloning or temporarily emptying the builder is needed.
 ///
 /// See [`super::CommandArgument`] for a complete custom-argument example.
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` is not a command builder",
+    note = "If this is a parser, use Parser::arg(name) or parser.into_arg(name) first. A custom builder implements CommandBuilder; parsing alone does not provide builder methods."
+)]
 pub trait CommandBuilder: Sized {
     type Source;
     type Output;
@@ -161,6 +165,26 @@ impl<S, R, P: NodeKind<S, R>> CommandBuilder for ArgumentBuilder<S, R, P> {
 /// defined in another crate. Built nodes are accepted directly. Other command
 /// wrappers may implement this trait themselves; an existing `From<Wrapper>`
 /// conversion can be reused by returning `self.into()` from `into_node`.
+///
+/// A parser is not a node, even if it implements [`super::CommandArgument`].
+/// Give it a name before registration:
+///
+/// ```compile_fail
+/// use azalea_brigadier::{parsers::Integer, prelude::*};
+/// let mut dispatcher = CommandDispatcher::<()>::new();
+/// dispatcher.register(Integer::default());
+/// ```
+///
+/// ```
+/// use azalea_brigadier::{parsers::Integer, prelude::*};
+/// let mut dispatcher = CommandDispatcher::<()>::new();
+/// dispatcher.register(Integer::arg("count"));
+/// dispatcher.register(Integer::default().into_arg("other"));
+/// ```
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` cannot be registered as a command node",
+    note = "Expected a command builder, a built CommandNode, or a wrapper implementing IntoCommandNode with matching source and output types. If this is a parser, use Parser::arg(name) or parser.into_arg(name) first."
+)]
 pub trait IntoCommandNode<S, R = i32> {
     fn into_node(self) -> CommandNode<S, R>;
 }
