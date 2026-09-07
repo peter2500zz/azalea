@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use super::{ArgumentType, ParsedValue};
 use crate::{
+    builder::CommandArgument,
     context::CommandContext,
     errors::{BuiltInError, CommandSyntaxError},
     string_reader::StringReader,
@@ -56,7 +57,7 @@ impl ArgumentType for Double {
 pub fn double<S, R>(
     name: impl Into<String>,
 ) -> crate::builder::argument_builder::ArgumentBuilder<S, R, Double> {
-    crate::builder::required_argument_builder::argument(name, Double::default())
+    Double::arg(name)
 }
 
 super::numeric::impl_numeric_config!(Double, f64);

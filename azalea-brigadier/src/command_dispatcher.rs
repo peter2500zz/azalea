@@ -13,6 +13,7 @@ use parking_lot::RwLock;
 #[cfg(feature = "async")]
 use crate::async_execution::AsyncExecution;
 use crate::{
+    builder::IntoCommandNode,
     context::{CommandContextBuilder, CommandContextRef, ContextChain},
     errors::{BuiltInError, CommandError, CommandResultTrait, CommandSyntaxError},
     parse_results::ParseResults,
@@ -62,11 +63,8 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
     /// # let mut subject = CommandDispatcher::<()>::new();
     /// subject.register(literal("foo").executes(|_| -> CommandResult { Ok(42) }));
     /// ```
-    pub fn register(
-        &mut self,
-        node: impl Into<CommandNode<S, R>>,
-    ) -> Arc<RwLock<CommandNode<S, R>>> {
-        let build = Arc::new(RwLock::new(node.into()));
+    pub fn register(&mut self, node: impl IntoCommandNode<S, R>) -> Arc<RwLock<CommandNode<S, R>>> {
+        let build = Arc::new(RwLock::new(node.into_node()));
         self.root.write().add_child(&build);
         build
     }

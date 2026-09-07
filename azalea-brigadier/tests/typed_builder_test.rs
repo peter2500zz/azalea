@@ -219,6 +219,9 @@ fn custom_non_clone_parser_can_be_configured_and_built() {
     struct Custom {
         prefix: String,
     }
+    impl CommandArgument for Custom {
+        type Builder<S, R> = ArgumentBuilder<S, R, Self>;
+    }
     impl ArgumentType for Custom {
         fn parse(&self, reader: &mut StringReader) -> Result<Arc<ParsedValue>, CommandSyntaxError> {
             Ok(Arc::new(format!(
@@ -230,12 +233,10 @@ fn custom_non_clone_parser_can_be_configured_and_built() {
     }
     let mut d = CommandDispatcher::<()>::new();
     let mut configured = 0;
-    let node = argument(
-        "value",
-        Custom {
-            prefix: "old:".into(),
-        },
-    )
+    let node = Custom {
+        prefix: "old:".into(),
+    }
+    .into_arg("value")
     .configure_parser(|mut parser| {
         configured += 1;
         parser.prefix = "new:".into();

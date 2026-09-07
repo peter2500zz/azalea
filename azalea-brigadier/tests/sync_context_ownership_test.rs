@@ -4,14 +4,19 @@ use std::{convert::Infallible, rc::Rc, sync::Arc};
 
 use azalea_brigadier::{
     arguments::{ArgumentType, ParsedValue},
-    builder::{literal_argument_builder::literal, required_argument_builder::argument},
+    builder::{ArgumentBuilder, CommandArgument, literal_argument_builder::literal},
     command_dispatcher::CommandDispatcher,
     context::{CommandContext, CommandContextRef},
     errors::CommandSyntaxError,
     string_reader::StringReader,
 };
 
+#[derive(Default)]
 struct ThreadLocalArgument;
+
+impl CommandArgument for ThreadLocalArgument {
+    type Builder<S, R> = ArgumentBuilder<S, R, Self>;
+}
 
 impl ArgumentType for ThreadLocalArgument {
     #[allow(clippy::arc_with_non_send_sync)]
@@ -29,7 +34,7 @@ fn context_ref_is_rc(context: CommandContextRef<(), i32>) -> Rc<CommandContext<(
 fn synchronous_builds_keep_rc_contexts_and_thread_local_arguments() {
     let mut dispatcher = CommandDispatcher::<(), i32>::new();
     dispatcher.register(
-        literal("local").then(argument("value", ThreadLocalArgument).executes(|ctx| {
+        literal("local").then(ThreadLocalArgument::arg("value").executes(|ctx| {
             assert!(
                 ctx.argument("value")
                     .and_then(|value| value.downcast_ref::<Rc<()>>())

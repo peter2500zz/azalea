@@ -25,7 +25,10 @@ pub mod prelude {
             long_argument_type::{get_long, long},
             string_argument_type::{get_string, greedy_string, string, word},
         },
-        builder::{literal_argument_builder::literal, required_argument_builder::argument},
+        builder::{
+            ArgumentBuilder, CommandArgument, CommandBuilder, IntoCommandNode,
+            literal_argument_builder::literal,
+        },
         command_dispatcher::CommandDispatcher,
         context::CommandContext,
         errors::{BoxCommandError, CommandError, CommandResult, CommandSyntaxError},

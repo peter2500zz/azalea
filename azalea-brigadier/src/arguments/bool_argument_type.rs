@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use super::{ArgumentType, ParsedValue};
 use crate::{
+    builder::CommandArgument,
     context::CommandContext,
     errors::CommandSyntaxError,
     string_reader::StringReader,
@@ -36,7 +37,7 @@ impl ArgumentType for Boolean {
 pub fn boolean<S, R>(
     name: impl Into<String>,
 ) -> crate::builder::argument_builder::ArgumentBuilder<S, R, Boolean> {
-    crate::builder::required_argument_builder::argument(name, Boolean)
+    Boolean::arg(name)
 }
 pub fn get_bool<S, R>(context: &CommandContext<S, R>, name: &str) -> Option<bool> {
     context

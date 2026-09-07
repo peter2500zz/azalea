@@ -16,6 +16,11 @@ pub type ParsedValue = dyn Any + Send + Sync;
 #[cfg(not(feature = "async"))]
 pub type ParsedValue = dyn Any;
 
+/// An object-safe parser, independent of command-node construction.
+///
+/// Implement [`crate::builder::CommandArgument`] to choose a named builder and
+/// expose `Parser::arg(name)` / `parser.into_arg(name)`. Keeping construction
+/// in a separate trait allows parsers to remain usable as `dyn ArgumentType`.
 pub trait ArgumentType {
     fn parse(&self, reader: &mut StringReader) -> Result<Arc<ParsedValue>, CommandSyntaxError>;
 

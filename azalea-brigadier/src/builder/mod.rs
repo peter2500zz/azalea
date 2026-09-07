@@ -60,14 +60,24 @@
 //! - Replace `argument("count", integer())` with `integer("count")`, and
 //!   `argument("enabled", bool())` with `boolean("enabled")`. The string
 //!   constructors likewise take names; their tokenization rules are unchanged.
-//! - Standalone parser factories now live in [crate::parsers]. Custom parsers
-//!   still use `argument(name, parser)` and implement
-//!   [crate::arguments::ArgumentType].
+//! - Standalone parser factories live in [crate::parsers]. The global
+//!   `argument(name, parser)` constructor has been removed. Implement
+//!   [CommandArgument] and use `Parser::arg(name)` for a default parser, or
+//!   `parser.into_arg(name)` for an explicitly configured instance. Existing
+//!   parser constructors such as `Parser::new(id)` are unaffected.
+//! - [crate::arguments::ArgumentType] stays the object-safe parsing interface.
+//!   [CommandArgument] chooses a concrete builder through an associated type.
+//!   Custom builders implement [CommandBuilder]; its common setters return
+//!   `Self`, keeping custom fluent methods available after every setter. See
+//!   [CommandArgument] for a complete downstream implementation.
 //! - An explicitly annotated argument builder includes its concrete parser as
 //!   the third type parameter, for example `ArgumentBuilder<(), i32, Integer>`.
 //!   Omit the annotation when inference suffices. The default kind is literal.
 //! - Heterogeneous collections use built `CommandNode<S, R>` values; `register`
-//!   and `then` accept either typed builders or built nodes through `Into`.
+//!   and `then` accept typed builders or built nodes through [IntoCommandNode].
+//!   Custom command wrappers that previously only implemented `From<Wrapper>`
+//!   for `CommandNode` should implement [IntoCommandNode] too, or call
+//!   `.into()` with an explicit `CommandNode<S, R>` type before registration.
 //! - `children()` replaces `arguments()`: it exposes attached children in
 //!   insertion order, before same-name children are merged by `build()`.
 //! - A builder is cloneable when its concrete parser is cloneable. Building a
@@ -77,8 +87,22 @@
 //! distinction between synchronous handlers borrowing a context and
 //! asynchronous handlers owning an Arc. No runtime or dependency is added by
 //! the builders.
+//!
+//! The old free constructor is intentionally not a compatibility alias:
+//!
+//! ```compile_fail
+//! use azalea_brigadier::{parsers, prelude::*};
+//! let mut dispatcher = CommandDispatcher::<()>::new();
+//! dispatcher.register(argument("count", parsers::integer()));
+//! ```
 
 pub mod argument_builder;
+pub mod command_argument;
+pub mod command_builder;
 pub mod kind;
 pub mod literal_argument_builder;
 pub mod required_argument_builder;
+
+pub use argument_builder::ArgumentBuilder;
+pub use command_argument::CommandArgument;
+pub use command_builder::{CommandBuilder, IntoCommandNode};

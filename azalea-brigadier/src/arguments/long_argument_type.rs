@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use super::{ArgumentType, ParsedValue};
 use crate::{
+    builder::CommandArgument,
     context::CommandContext,
     errors::{BuiltInError, CommandSyntaxError},
     string_reader::StringReader,
@@ -55,7 +56,7 @@ impl ArgumentType for Long {
 pub fn long<S, R>(
     name: impl Into<String>,
 ) -> crate::builder::argument_builder::ArgumentBuilder<S, R, Long> {
-    crate::builder::required_argument_builder::argument(name, Long::default())
+    Long::arg(name)
 }
 
 super::numeric::impl_numeric_config!(Long, i64);

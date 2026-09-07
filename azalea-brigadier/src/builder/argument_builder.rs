@@ -8,6 +8,7 @@ use std::{
 use parking_lot::RwLock;
 
 use super::{
+    IntoCommandNode,
     kind::NodeKind,
     literal_argument_builder::{Literal, LiteralKind},
     required_argument_builder::Argument,
@@ -88,8 +89,8 @@ impl<S, R, P> ArgumentBuilder<S, R, P> {
     ///     .then(literal("bar").executes(|_: &CommandContext<()>| -> CommandResult { Ok(42) }))
     /// # ;
     /// ```
-    pub fn then(self, argument: impl Into<CommandNode<S, R>>) -> Self {
-        self.then_built(argument.into())
+    pub fn then(self, argument: impl IntoCommandNode<S, R>) -> Self {
+        self.then_built(argument.into_node())
     }
 
     /// Add an already built child node to this node.
@@ -317,6 +318,17 @@ impl<S, R, P: Clone> Clone for ArgumentBuilder<S, R, P> {
 }
 
 impl<S, R, P: ArgumentType + Send + Sync + 'static> ArgumentBuilder<S, R, P> {
+    /// Borrow this argument's concrete parser configuration.
+    pub fn parser(&self) -> &P {
+        &self.parser
+    }
+
+    /// Configure this argument's parser from a custom builder's fluent method.
+    /// Common node metadata and the concrete parser type are preserved.
+    pub fn parser_mut(&mut self) -> &mut P {
+        &mut self.parser
+    }
+
     /// Decide what to suggest for this argument, instead of asking its
     /// [`ArgumentType`].
     ///
@@ -363,7 +375,8 @@ impl<S, R, P: ArgumentType + Send + Sync + 'static> ArgumentBuilder<S, R, P> {
     /// use azalea_brigadier::{parsers, prelude::*};
     /// let mut dispatcher = CommandDispatcher::<()>::new();
     /// dispatcher.register(
-    ///     argument("count", parsers::integer())
+    ///     parsers::integer()
+    ///         .into_arg("count")
     ///         .configure_parser(|parser| parser.range(1..=10))
     ///         .executes(|ctx| -> CommandResult { Ok(get_integer(ctx, "count").unwrap()) }),
     /// );

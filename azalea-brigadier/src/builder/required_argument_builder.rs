@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use super::argument_builder::{ArgumentBuilder, ArgumentBuilderType};
+use super::argument_builder::ArgumentBuilderType;
 use crate::{
     arguments::{ArgumentType, ParsedValue},
     context::CommandContext,
@@ -68,20 +68,6 @@ impl<S, R> Debug for Argument<S, R> {
             // .field("parser", &self.parser)
             .finish()
     }
-}
-
-/// Create a named argument from a custom or standalone parser.
-///
-/// Built-in arguments have shorter constructors such as [`integer("count")`]
-/// and [`word("player")`]. Standalone parsers live in [`crate::parsers`].
-///
-/// [`integer("count")`]: crate::prelude::integer
-/// [`word("player")`]: crate::prelude::word
-pub fn argument<S, R, P: ArgumentType + Send + Sync + 'static>(
-    name: impl Into<String>,
-    parser: P,
-) -> ArgumentBuilder<S, R, P> {
-    ArgumentBuilder::new(name.into(), parser)
 }
 
 impl<S, R> Clone for Argument<S, R> {

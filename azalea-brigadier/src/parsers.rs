@@ -16,7 +16,10 @@
 //! ```
 //!
 //! Use these factories when constructing or testing a parser independently,
-//! or pass one to `argument(name, parser)`. Custom parsers continue to
+//! or name one with
+//! [CommandArgument::into_arg](crate::builder::CommandArgument::into_arg).
+//! Default numeric and boolean parsers also provide `Integer::arg("count")`
+//! and `Boolean::arg("enabled")` through that trait. Custom parsers continue to
 //! implement [ArgumentType](crate::arguments::ArgumentType); synchronous builds
 //! may return non-Send values. Parser objects themselves remain Send + Sync.
 //!
