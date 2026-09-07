@@ -23,7 +23,7 @@ impl Error for ApplicationError {}
 #[test]
 fn a_fallible_command_returns_an_outer_execution_error() {
     let mut dispatcher = CommandDispatcher::new();
-    dispatcher.register(literal("fail").executes_result(|_| Err::<i32, _>(ApplicationError)));
+    dispatcher.register(literal("fail").executes(|_| Err::<i32, _>(ApplicationError)));
 
     let error = dispatcher.execute("fail", ()).unwrap_err();
     assert!(matches!(error, CommandError::Execution(_)));
@@ -61,8 +61,8 @@ fn different_application_error_types_can_share_one_dispatcher() {
     impl Error for OtherError {}
 
     let mut dispatcher = CommandDispatcher::new();
-    dispatcher.register(literal("first").executes_result(|_| Err::<i32, _>(ApplicationError)));
-    dispatcher.register(literal("second").executes_result(|_| Err::<i32, _>(OtherError)));
+    dispatcher.register(literal("first").executes(|_| Err::<i32, _>(ApplicationError)));
+    dispatcher.register(literal("second").executes(|_| Err::<i32, _>(OtherError)));
 
     assert!(
         dispatcher
@@ -90,7 +90,7 @@ mod asynchronous {
     fn an_async_fallible_command_uses_the_same_error_channel() {
         let mut dispatcher = CommandDispatcher::new();
         dispatcher.register(
-            literal("fail").executes_async_result(|_| async { Err::<i32, _>(ApplicationError) }),
+            literal("fail").executes_async(|_| async { Err::<i32, _>(ApplicationError) }),
         );
 
         let error = block_on(dispatcher.execute_async("fail", ())).unwrap_err();
@@ -109,7 +109,7 @@ mod asynchronous {
         use std::sync::Arc;
 
         let mut dispatcher = CommandDispatcher::new();
-        dispatcher.register(literal("actual").executes_result(|ctx| {
+        dispatcher.register(literal("actual").executes(|ctx| {
             if *ctx.source == 1 {
                 Err(ApplicationError)
             } else {

@@ -1,6 +1,12 @@
 //! Descriptions set with [`ArgumentBuilder::describe`] and where they surface.
 
+use std::convert::Infallible;
+
 use azalea_brigadier::{prelude::*, suggestion::Suggestion};
+
+fn success(value: i32) -> Result<i32, Infallible> {
+    Ok(value)
+}
 
 fn suggestions(subject: &CommandDispatcher<()>, input: &str) -> Vec<Suggestion> {
     CommandDispatcher::get_completion_suggestions(subject.parse(input.into(), ()))
@@ -24,7 +30,7 @@ fn a_literal_offers_its_description_as_a_tooltip() {
     subject.register(
         literal("foo")
             .describe("does the foo thing")
-            .executes(|_: &CommandContext<()>| 1),
+            .executes(|_: &CommandContext<()>| success(1)),
     );
 
     assert_eq!(
@@ -37,7 +43,7 @@ fn a_literal_offers_its_description_as_a_tooltip() {
 #[test]
 fn an_undescribed_literal_has_no_tooltip() {
     let mut subject = CommandDispatcher::<()>::new();
-    subject.register(literal("foo").executes(|_: &CommandContext<()>| 1));
+    subject.register(literal("foo").executes(|_: &CommandContext<()>| success(1)));
 
     assert_eq!(tooltip_of(&subject, "f", "foo"), None);
 }
@@ -52,14 +58,14 @@ fn nodes_sharing_a_name_describe_themselves_separately() {
         literal("proxy").then(
             literal("on")
                 .describe("route through the upstream proxy")
-                .executes(|_: &CommandContext<()>| 1),
+                .executes(|_: &CommandContext<()>| success(1)),
         ),
     );
     subject.register(
         literal("log").then(
             literal("on")
                 .describe("turn on verbose logging")
-                .executes(|_: &CommandContext<()>| 1),
+                .executes(|_: &CommandContext<()>| success(1)),
         ),
     );
 
@@ -81,11 +87,13 @@ fn merging_a_branch_keeps_the_description() {
     subject.register(
         literal("proxy")
             .describe("upstream proxy settings")
-            .then(literal("on").executes(|_: &CommandContext<()>| 1)),
+            .then(literal("on").executes(|_: &CommandContext<()>| success(1))),
     );
     // Same command, registered again for another subcommand, this time with
     // nothing to say about `proxy` itself.
-    subject.register(literal("proxy").then(literal("off").executes(|_: &CommandContext<()>| 1)));
+    subject.register(
+        literal("proxy").then(literal("off").executes(|_: &CommandContext<()>| success(1))),
+    );
 
     assert_eq!(
         tooltip_of(&subject, "pro", "proxy").as_deref(),
@@ -127,7 +135,7 @@ fn an_argument_may_hand_its_suggestions_to_a_closure() {
                         builder.suggest("grey").build()
                     }
                 })
-                .executes(|_: &CommandContext<bool>| 1),
+                .executes(|_: &CommandContext<bool>| success(1)),
         ),
     );
 

@@ -1,4 +1,4 @@
-use std::{mem, ops::Deref, sync::Arc};
+use std::{convert::Infallible, mem, ops::Deref, sync::Arc};
 
 use azalea_brigadier::prelude::*;
 use bevy_app::App;
@@ -130,23 +130,25 @@ impl DispatchStorage {
     /// A command called from the dispatcher.
     ///
     /// Spawns an entity with the [`SpawnedEntity`] component.
-    fn command_spawn_entity(context: &CommandContext<WorldAccessor>) -> i32 {
+    fn command_spawn_entity(context: &CommandContext<WorldAccessor>) -> Result<i32, Infallible> {
         context.source.write().spawn(SpawnedEntity);
 
-        0
+        Ok(0)
     }
 
     /// A command called from the dispatcher.
     ///
     /// Spawns a number of entities with the [`SpawnedEntity`] component.
-    fn command_spawn_entity_num(context: &CommandContext<WorldAccessor>) -> i32 {
+    fn command_spawn_entity_num(
+        context: &CommandContext<WorldAccessor>,
+    ) -> Result<i32, Infallible> {
         let num = get_integer(context, "entities").unwrap();
 
         for _ in 0..num {
             context.source.write().spawn(SpawnedEntity);
         }
 
-        0
+        Ok(0)
     }
 
     /// A bevy system called to verify four total entities was spawned.

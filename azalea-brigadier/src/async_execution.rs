@@ -13,9 +13,10 @@ pub type CommandFuture<R> = Pin<Box<dyn Future<Output = Result<R, CommandError>>
 /// A prepared asynchronous command execution.
 ///
 /// Parsing, redirects, forks, and calls to command closures have already
-/// completed. Consequently this value contains no [`CommandContext`] and is
-/// safe to move to a multi-threaded executor even though parsed arguments may
-/// themselves be thread-local values.
+/// completed. The command futures may retain their owned [`CommandContext`]
+/// handles, whose parsed values are required to be `Send + Sync` whenever the
+/// `async` feature is enabled. The plan is therefore safe to move to a
+/// multi-threaded executor.
 ///
 /// [`CommandContext`]: crate::context::CommandContext
 #[must_use = "an asynchronous command does nothing until its execution is awaited"]

@@ -1,12 +1,11 @@
 use std::{
-    any::Any,
     fmt::{self, Debug},
     sync::Arc,
 };
 
 use super::argument_builder::{ArgumentBuilder, ArgumentBuilderType};
 use crate::{
-    arguments::ArgumentType,
+    arguments::{ArgumentType, ParsedValue},
     context::CommandContext,
     errors::CommandSyntaxError,
     string_reader::StringReader,
@@ -36,7 +35,7 @@ impl<S, R> Argument<S, R> {
         }
     }
 
-    pub fn parse(&self, reader: &mut StringReader) -> Result<Arc<dyn Any>, CommandSyntaxError> {
+    pub fn parse(&self, reader: &mut StringReader) -> Result<Arc<ParsedValue>, CommandSyntaxError> {
         self.parser.parse(reader)
     }
 

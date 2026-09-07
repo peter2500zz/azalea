@@ -8,8 +8,9 @@ use std::{
 use parking_lot::RwLock;
 
 use super::{
-    ParsedArgument, command_context::CommandContext, parsed_command_node::ParsedCommandNode,
-    string_range::StringRange, suggestion_context::SuggestionContext,
+    CommandContextRef, ParsedArgument, command_context::CommandContext,
+    parsed_command_node::ParsedCommandNode, string_range::StringRange,
+    suggestion_context::SuggestionContext,
 };
 #[cfg(feature = "async")]
 use crate::tree::AsyncCommand;
@@ -113,7 +114,10 @@ impl<'a, S, R> CommandContextBuilder<'a, S, R> {
             command: self.command.clone(),
             #[cfg(feature = "async")]
             async_command: self.async_command.clone(),
-            child: self.child.clone().map(|c| Rc::new(c.build(input))),
+            child: self
+                .child
+                .clone()
+                .map(|c| CommandContextRef::new(c.build(input))),
             range: self.range,
             forks: self.forks,
             modifier: self.modifier.clone(),

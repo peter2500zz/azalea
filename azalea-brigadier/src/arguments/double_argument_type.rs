@@ -1,6 +1,6 @@
-use std::{any::Any, sync::Arc};
+use std::sync::Arc;
 
-use super::ArgumentType;
+use super::{ArgumentType, ParsedValue};
 use crate::{
     context::CommandContext,
     errors::{BuiltInError, CommandSyntaxError},
@@ -14,7 +14,7 @@ struct Double {
 }
 
 impl ArgumentType for Double {
-    fn parse(&self, reader: &mut StringReader) -> Result<Arc<dyn Any>, CommandSyntaxError> {
+    fn parse(&self, reader: &mut StringReader) -> Result<Arc<ParsedValue>, CommandSyntaxError> {
         let start = reader.cursor;
         let result = reader.read_double()?;
         if let Some(minimum) = self.minimum

@@ -6,7 +6,7 @@ mod parsed_command_node;
 mod string_range;
 pub mod suggestion_context;
 
-pub use command_context::CommandContext;
+pub use command_context::{CommandContext, CommandContextRef};
 pub use command_context_builder::CommandContextBuilder;
 pub use context_chain::ContextChain;
 pub use parsed_argument::ParsedArgument;

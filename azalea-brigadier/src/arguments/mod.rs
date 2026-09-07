@@ -6,4 +6,4 @@ pub mod integer_argument_type;
 pub mod long_argument_type;
 pub mod string_argument_type;
 
-pub use argument_type::ArgumentType;
+pub use argument_type::{ArgumentType, ParsedValue};

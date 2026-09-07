@@ -18,6 +18,13 @@ pub enum CommandError {
 /// The error object accepted by the command execution boundary.
 pub type BoxCommandError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
+/// A convenient concrete result type for command handlers.
+///
+/// Handlers may return any other standard error type as well; this alias is
+/// useful when an otherwise infallible inline closure needs an explicit error
+/// type for `Ok(...)`.
+pub type CommandResult<R = i32> = Result<R, BoxCommandError>;
+
 impl CommandError {
     /// Wrap an application error returned by a command action.
     pub fn from_execution<E>(error: E) -> Self

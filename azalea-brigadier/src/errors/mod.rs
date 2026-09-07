@@ -3,7 +3,7 @@ mod command_error;
 mod command_syntax_error;
 
 pub use builtin_errors::BuiltInError;
-pub use command_error::{BoxCommandError, CommandError};
+pub use command_error::{BoxCommandError, CommandError, CommandResult};
 pub use command_syntax_error::CommandSyntaxError;
 
 pub trait CommandResultTrait {

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{convert::Infallible, sync::Arc};
 
 use azalea_brigadier::{
     arguments::integer_argument_type::integer,
@@ -12,6 +12,10 @@ use azalea_brigadier::{
 #[derive(Debug, PartialEq)]
 struct CommandSource {}
 
+fn success(value: i32) -> Result<i32, Infallible> {
+    Ok(value)
+}
+
 fn input_with_offset(input: &str, offset: usize) -> StringReader {
     let mut result: StringReader = input.into();
     result.cursor = offset;
@@ -21,7 +25,7 @@ fn input_with_offset(input: &str, offset: usize) -> StringReader {
 #[test]
 fn create_and_execute_offset_command() {
     let mut subject = CommandDispatcher::new();
-    subject.register(literal("foo").executes(|_| 42));
+    subject.register(literal("foo").executes(|_| success(42)));
 
     assert_eq!(
         subject
@@ -34,8 +38,8 @@ fn create_and_execute_offset_command() {
 #[test]
 fn create_and_merge_commands() {
     let mut subject = CommandDispatcher::new();
-    subject.register(literal("base").then(literal("foo").executes(|_| 42)));
-    subject.register(literal("base").then(literal("bar").executes(|_| 42)));
+    subject.register(literal("base").then(literal("foo").executes(|_| success(42))));
+    subject.register(literal("base").then(literal("bar").executes(|_| success(42))));
 
     assert_eq!(subject.execute("base foo", &CommandSource {}).unwrap(), 42);
     assert_eq!(subject.execute("base bar", &CommandSource {}).unwrap(), 42);
@@ -84,7 +88,7 @@ fn execute_empty_command() {
 #[test]
 fn execute_unknown_subcommand() {
     let mut subject = CommandDispatcher::new();
-    subject.register(literal("foo").executes(|_| 42));
+    subject.register(literal("foo").executes(|_| success(42)));
 
     let execute_result = subject.execute("foo bar", &CommandSource {});
 
@@ -97,7 +101,11 @@ fn execute_unknown_subcommand() {
 #[test]
 fn execute_incorrect_literal() {
     let mut subject = CommandDispatcher::new();
-    subject.register(literal("foo").executes(|_| 42).then(literal("bar")));
+    subject.register(
+        literal("foo")
+            .executes(|_| success(42))
+            .then(literal("bar")),
+    );
 
     let execute_result = subject.execute("foo baz", &CommandSource {});
 
@@ -112,7 +120,7 @@ fn execute_ambiguous_incorrect_argument() {
     let mut subject = CommandDispatcher::new();
     subject.register(
         literal("foo")
-            .executes(|_| 42)
+            .executes(|_| success(42))
             .then(literal("bar"))
             .then(literal("baz")),
     );
@@ -132,9 +140,9 @@ fn execute_subcommand() {
     subject.register(
         literal("foo")
             .then(literal("a"))
-            .then(literal("=").executes(|_| 100))
+            .then(literal("=").executes(|_| success(100)))
             .then(literal("c"))
-            .executes(|_| 42),
+            .executes(|_| success(42)),
     );
 
     assert_eq!(subject.execute("foo =", &CommandSource {}).unwrap(), 100);
@@ -143,7 +151,7 @@ fn execute_subcommand() {
 #[test]
 fn parse_incomplete_literal() {
     let mut subject = CommandDispatcher::new();
-    subject.register(literal("foo").then(literal("bar").executes(|_| 42)));
+    subject.register(literal("foo").then(literal("bar").executes(|_| success(42))));
 
     let parse = subject.parse("foo ".into(), &CommandSource {});
     assert_eq!(parse.reader.remaining(), " ");
@@ -153,7 +161,7 @@ fn parse_incomplete_literal() {
 #[test]
 fn parse_incomplete_argument() {
     let mut subject = CommandDispatcher::new();
-    subject.register(literal("foo").then(argument("bar", integer()).executes(|_| 42)));
+    subject.register(literal("foo").then(argument("bar", integer()).executes(|_| success(42))));
 
     let parse = subject.parse("foo ".into(), &CommandSource {});
     assert_eq!(parse.reader.remaining(), " ");
@@ -166,9 +174,10 @@ fn execute_ignores_terminal_spaces_after_an_executable_node() {
     subject.register(
         literal("kick").then(
             argument("player", azalea_brigadier::prelude::word())
-                .executes(|_| 1)
+                .executes(|_| success(1))
                 .then(
-                    argument("reason", azalea_brigadier::prelude::greedy_string()).executes(|_| 2),
+                    argument("reason", azalea_brigadier::prelude::greedy_string())
+                        .executes(|_| success(2)),
                 ),
         ),
     );
@@ -201,10 +210,9 @@ fn execute_ignores_terminal_spaces_after_an_executable_node() {
 #[test]
 fn terminal_spaces_do_not_satisfy_a_required_child() {
     let mut subject = CommandDispatcher::new();
-    subject.register(
-        literal("say")
-            .then(argument("message", azalea_brigadier::prelude::greedy_string()).executes(|_| 1)),
-    );
+    subject.register(literal("say").then(
+        argument("message", azalea_brigadier::prelude::greedy_string()).executes(|_| success(1)),
+    ));
 
     for input in ["say ", "say  ", "say   "] {
         assert!(
@@ -221,8 +229,11 @@ fn execute_ambiguous_parent_subcommand() {
 
     subject.register(
         literal("test")
-            .then(argument("incorrect", integer()).executes(|_| 42))
-            .then(argument("right", integer()).then(argument("sub", integer()).executes(|_| 100))),
+            .then(argument("incorrect", integer()).executes(|_| success(42)))
+            .then(
+                argument("right", integer())
+                    .then(argument("sub", integer()).executes(|_| success(100))),
+            ),
     );
 
     assert_eq!(subject.execute("test 1 2", &CommandSource {}).unwrap(), 100);
@@ -234,8 +245,11 @@ fn execute_ambiguous_parent_subcommand_via_redirect() {
 
     let real = subject.register(
         literal("test")
-            .then(argument("incorrect", integer()).executes(|_| 42))
-            .then(argument("right", integer()).then(argument("sub", integer()).executes(|_| 100))),
+            .then(argument("incorrect", integer()).executes(|_| success(42)))
+            .then(
+                argument("right", integer())
+                    .then(argument("sub", integer()).executes(|_| success(100))),
+            ),
     );
 
     subject.register(literal("redirect").redirect(real));
@@ -250,7 +264,7 @@ fn execute_ambiguous_parent_subcommand_via_redirect() {
 fn execute_redirected_multiple_times() {
     let mut subject = CommandDispatcher::new();
 
-    let concrete_node = subject.register(literal("actual").executes(|_| 42));
+    let concrete_node = subject.register(literal("actual").executes(|_| success(42)));
     let root = subject.root.clone();
     let redirect_node = subject.register(literal("redirected").redirect(root.clone()));
 
@@ -302,7 +316,7 @@ fn execute_redirected() {
             Ok(vec![source1.clone(), source2.clone()])
         };
 
-    let concrete_node = subject.register(literal("actual").executes(|_| 42));
+    let concrete_node = subject.register(literal("actual").executes(|_| success(42)));
     let redirect_node =
         subject.register(literal("redirected").fork(subject.root.clone(), Arc::new(modifier)));
 
@@ -334,7 +348,7 @@ fn execute_orphaned_subcommand() {
     subject.register(
         literal("foo")
             .then(argument("bar", integer()))
-            .executes(|_| 42),
+            .executes(|_| success(42)),
     );
 
     let result = subject.execute("foo 5", &CommandSource {});
@@ -349,8 +363,10 @@ fn execute_orphaned_subcommand() {
 fn execute_invalid_other() {
     let mut subject = CommandDispatcher::new();
 
-    subject.register(literal("w").executes(|_| panic!("This should not run")));
-    subject.register(literal("world").executes(|_| 42));
+    subject.register(
+        literal("w").executes(|_| -> Result<i32, Infallible> { panic!("This should not run") }),
+    );
+    subject.register(literal("world").executes(|_| success(42)));
 
     assert_eq!(subject.execute("world", &CommandSource {}).unwrap(), 42);
 }
@@ -362,7 +378,7 @@ fn parse_no_space_separator() {
     subject.register(
         literal("foo")
             .then(argument("bar", integer()))
-            .executes(|_| 42),
+            .executes(|_| success(42)),
     );
 
     let result = subject.execute("foo$", &CommandSource {});
@@ -380,7 +396,7 @@ fn execute_invalid_subcommand() {
     subject.register(
         literal("foo")
             .then(argument("bar", integer()))
-            .executes(|_| 42),
+            .executes(|_| success(42)),
     );
 
     let result = subject.execute("foo bar", &CommandSource {});

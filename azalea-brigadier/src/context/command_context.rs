@@ -1,8 +1,8 @@
+#[cfg(not(feature = "async"))]
+use std::rc::Rc;
 use std::{
-    any::Any,
     collections::HashMap,
     fmt::{self, Debug},
-    rc::Rc,
     sync::Arc,
 };
 
@@ -12,9 +12,17 @@ use super::{ParsedArgument, parsed_command_node::ParsedCommandNode, string_range
 #[cfg(feature = "async")]
 use crate::tree::AsyncCommand;
 use crate::{
+    arguments::ParsedValue,
     modifier::RedirectModifier,
     tree::{Command, CommandNode},
 };
+
+/// Shared ownership for a built command context.
+#[cfg(feature = "async")]
+pub type CommandContextRef<S, R = i32> = Arc<CommandContext<S, R>>;
+/// Shared ownership for a built command context.
+#[cfg(not(feature = "async"))]
+pub type CommandContextRef<S, R = i32> = Rc<CommandContext<S, R>>;
 
 /// A built `CommandContextBuilder`.
 pub struct CommandContext<S, R = i32> {
@@ -27,7 +35,7 @@ pub struct CommandContext<S, R = i32> {
     pub(super) root_node: Arc<RwLock<CommandNode<S, R>>>,
     pub(super) nodes: Vec<ParsedCommandNode<S, R>>,
     pub(super) range: StringRange,
-    pub(super) child: Option<Rc<CommandContext<S, R>>>,
+    pub(super) child: Option<CommandContextRef<S, R>>,
     pub(super) modifier: Option<Arc<RedirectModifier<S, R>>>,
     pub(super) forks: bool,
 }
@@ -112,7 +120,7 @@ impl<S, R> CommandContext<S, R> {
         &self.async_command
     }
 
-    pub fn argument(&self, name: &str) -> Option<&dyn Any> {
+    pub fn argument(&self, name: &str) -> Option<&ParsedValue> {
         let argument = self.arguments.get(name);
         argument.map(|a| a.result.as_ref())
     }

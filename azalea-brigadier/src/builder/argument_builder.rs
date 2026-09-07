@@ -71,7 +71,8 @@ impl<S, R> ArgumentBuilder<S, R> {
     /// ```
     /// # use azalea_brigadier::prelude::*;
     /// # let mut subject = CommandDispatcher::<()>::new();
-    /// literal("foo").then(literal("bar").executes(|ctx: &CommandContext<()>| 42))
+    /// literal("foo")
+    ///     .then(literal("bar").executes(|_: &CommandContext<()>| -> CommandResult { Ok(42) }))
     /// # ;
     /// ```
     pub fn then(self, argument: ArgumentBuilder<S, R>) -> Self {
@@ -94,24 +95,10 @@ impl<S, R> ArgumentBuilder<S, R> {
     /// # use azalea_brigadier::prelude::*;
     /// # let mut subject = CommandDispatcher::<()>::new();
     /// # subject.register(
-    /// literal("foo").executes(|ctx: &CommandContext<()>| 42)
+    /// literal("foo").executes(|_: &CommandContext<()>| -> CommandResult { Ok(42) })
     /// # );
     /// ```
-    pub fn executes<F>(mut self, f: F) -> Self
-    where
-        F: Fn(&CommandContext<S, R>) -> R + Send + Sync + 'static,
-    {
-        self.command = Some(Arc::new(move |ctx: &CommandContext<S, R>| Ok(f(ctx))));
-        #[cfg(feature = "async")]
-        {
-            self.async_command = None;
-        }
-        self
-    }
-
-    /// Same as [`Self::executes`] but returns a `Result<i32,
-    /// CommandSyntaxError>`.
-    pub fn executes_result<F, E>(mut self, f: F) -> Self
+    pub fn executes<F, E>(mut self, f: F) -> Self
     where
         F: Fn(&CommandContext<S, R>) -> Result<R, E> + Send + Sync + 'static,
         E: Into<BoxCommandError> + 'static,
@@ -128,76 +115,47 @@ impl<S, R> ArgumentBuilder<S, R> {
 
     /// Set an asynchronous command to be executed when this node is reached.
     ///
-    /// The closure itself is called synchronously while an execution plan is
-    /// prepared. Use it only to copy owned data out of the context; the future
-    /// it returns is what runs asynchronously. The future must therefore own
-    /// everything it uses across an `.await` and be `Send + 'static`.
+    /// The handler receives an owned [`Arc`] so a named `async fn` can be
+    /// registered directly and keep its context across `.await` points. The
+    /// returned future must be `Send + 'static` so executors may move it
+    /// between worker threads.
     ///
     /// ```
     /// # use std::sync::Arc;
     /// # use azalea_brigadier::{builder::argument_builder::ArgumentBuilder, prelude::*};
-    /// let command: ArgumentBuilder<()> =
-    ///     literal("later").executes_async(|ctx: &CommandContext<()>| {
-    ///         let source = Arc::clone(&ctx.source);
-    ///         async move {
-    ///             drop(source);
-    ///             42
-    ///         }
-    ///     });
-    /// # let _ = command;
-    /// ```
+    /// async fn later(ctx: Arc<CommandContext<()>>) -> CommandResult {
+    ///     drop(ctx);
+    ///     Ok(42)
+    /// }
     ///
-    /// Borrowing the parsing context into the returned future is rejected:
-    ///
-    /// ```compile_fail
-    /// # use std::sync::Arc;
-    /// # use azalea_brigadier::{builder::argument_builder::ArgumentBuilder, prelude::*};
-    /// let command: ArgumentBuilder<()> =
-    ///     literal("bad").executes_async(|ctx: &CommandContext<()>| async move {
-    ///         Arc::strong_count(&ctx.source) as i32
-    ///     });
+    /// let command: ArgumentBuilder<()> = literal("later").executes_async(later);
     /// # let _ = command;
     /// ```
     ///
     /// So is a future carrying thread-local state:
     ///
     /// ```compile_fail
-    /// # use std::rc::Rc;
+    /// # use std::{rc::Rc, sync::Arc};
     /// # use azalea_brigadier::{builder::argument_builder::ArgumentBuilder, prelude::*};
-    /// let command: ArgumentBuilder<()> = literal("bad").executes_async(|_| {
+    /// let command: ArgumentBuilder<()> = literal("bad").executes_async(|_: Arc<CommandContext<()>>| {
     ///     let local = Rc::new(());
     ///     async move {
+    ///         std::future::ready(()).await;
     ///         drop(local);
-    ///         1
+    ///         Ok::<_, BoxCommandError>(1)
     ///     }
     /// });
     /// # let _ = command;
     /// ```
     #[cfg(feature = "async")]
-    pub fn executes_async<F, Fut>(mut self, f: F) -> Self
+    pub fn executes_async<F, Fut, E>(mut self, f: F) -> Self
     where
-        F: Fn(&CommandContext<S, R>) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = R> + Send + 'static,
-    {
-        self.command = None;
-        self.async_command = Some(Arc::new(move |ctx: &CommandContext<S, R>| {
-            let future = f(ctx);
-            Box::pin(async move { Ok(future.await) })
-        }));
-        self
-    }
-
-    /// Same as [`Self::executes_async`] but the future returns a
-    /// `Result<R, CommandSyntaxError>`.
-    #[cfg(feature = "async")]
-    pub fn executes_async_result<F, Fut, E>(mut self, f: F) -> Self
-    where
-        F: Fn(&CommandContext<S, R>) -> Fut + Send + Sync + 'static,
+        F: Fn(Arc<CommandContext<S, R>>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<R, E>> + Send + 'static,
         E: Into<BoxCommandError> + 'static,
     {
         self.command = None;
-        self.async_command = Some(Arc::new(move |ctx: &CommandContext<S, R>| {
+        self.async_command = Some(Arc::new(move |ctx: Arc<CommandContext<S, R>>| {
             let future = f(ctx);
             Box::pin(async move { future.await.map_err(CommandError::from_execution) })
         }));
@@ -217,7 +175,7 @@ impl<S, R> ArgumentBuilder<S, R> {
     /// # subject.register(
     /// literal("foo")
     ///     .describe("does the foo thing")
-    ///     .executes(|ctx: &CommandContext<()>| 42)
+    ///     .executes(|_: &CommandContext<()>| -> CommandResult { Ok(42) })
     /// # );
     /// ```
     pub fn describe(mut self, description: &str) -> Self {
@@ -240,7 +198,7 @@ impl<S, R> ArgumentBuilder<S, R> {
     /// literal("foo")
     ///     .requires(|s: &CommandSource| s.opped)
     ///     // ...
-    ///     # .executes(|ctx: &CommandContext<CommandSource>| 42)
+    ///     # .executes(|_: &CommandContext<CommandSource>| -> CommandResult { Ok(42) })
     /// # );
     pub fn requires<F>(mut self, requirement: F) -> Self
     where
@@ -266,7 +224,7 @@ impl<S, R> ArgumentBuilder<S, R> {
     ///     .suggests(|_ctx: CommandContext<()>, builder: SuggestionsBuilder| {
     ///         builder.suggest("red").suggest("green").build()
     ///     })
-    ///     .executes(|ctx: &CommandContext<()>| 42)
+    ///     .executes(|_: &CommandContext<()>| -> CommandResult { Ok(42) })
     /// # );
     /// ```
     ///

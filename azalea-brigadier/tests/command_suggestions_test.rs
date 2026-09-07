@@ -422,7 +422,7 @@ fn get_completion_suggestions_execute_simulation() {
         literal("execute")
             .then(literal("as").then(argument("name", word()).redirect(execute.clone())))
             .then(literal("store").then(argument("name", word()).redirect(execute)))
-            .then(literal("run").executes(|_| 0)),
+            .then(literal("run").executes(|_| Ok::<_, std::convert::Infallible>(0))),
     );
 
     let parse = subject.parse("execute as Dinnerbone as".into(), ());
@@ -444,7 +444,7 @@ fn get_completion_suggestions_execute_simulation_partial() {
                     .then(literal("baz").redirect(execute.clone())),
             )
             .then(literal("store").then(argument("name", word()).redirect(execute)))
-            .then(literal("run").executes(|_| 0)),
+            .then(literal("run").executes(|_| Ok::<_, std::convert::Infallible>(0))),
     );
 
     let parse = subject.parse("execute as bar as ".into(), ());

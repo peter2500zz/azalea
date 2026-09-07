@@ -1,10 +1,10 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, convert::Infallible, sync::Arc};
 
 use azalea_brigadier::{prelude::*, string_reader::StringReader, tree::CommandNode};
 use parking_lot::RwLock;
 
 fn setup() -> CommandDispatcher<()> {
-    let command = |_: &CommandContext<()>| 0;
+    let command = |_: &CommandContext<()>| Ok::<_, Infallible>(0);
 
     let mut subject = CommandDispatcher::new();
     subject.register(

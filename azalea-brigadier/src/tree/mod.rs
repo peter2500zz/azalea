@@ -27,7 +27,7 @@ pub type Command<S, R> =
 
 #[cfg(feature = "async")]
 pub type AsyncCommand<S, R> =
-    Option<Arc<dyn Fn(&CommandContext<S, R>) -> CommandFuture<R> + Send + Sync>>;
+    Option<Arc<dyn Fn(Arc<CommandContext<S, R>>) -> CommandFuture<R> + Send + Sync>>;
 
 /// An ArgumentBuilder that has been built.
 #[non_exhaustive]

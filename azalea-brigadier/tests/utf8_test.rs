@@ -1,16 +1,24 @@
 //! Commands and completions over input where byte and character offsets differ.
 
+use std::convert::Infallible;
+
 use azalea_brigadier::{prelude::*, string_reader::StringReader};
 
 #[derive(Debug, Clone, PartialEq)]
 struct CommandSource {}
+
+fn success(value: i32) -> Result<i32, Infallible> {
+    Ok(value)
+}
 
 /// A dispatcher with a single `echo <value>` taking the rest of the line.
 fn greedy_dispatcher() -> CommandDispatcher<CommandSource> {
     let mut subject = CommandDispatcher::new();
     subject.register(
         literal("echo").then(argument("value", greedy_string()).executes(
-            |ctx: &CommandContext<CommandSource>| i32::from(get_string(ctx, "value").is_some()),
+            |ctx: &CommandContext<CommandSource>| {
+                success(i32::from(get_string(ctx, "value").is_some()))
+            },
         )),
     );
     subject
@@ -21,11 +29,15 @@ fn greedy_dispatcher() -> CommandDispatcher<CommandSource> {
 fn word_dispatcher() -> CommandDispatcher<CommandSource> {
     let mut subject = CommandDispatcher::new();
     subject.register(literal("say").then(argument("value", word()).executes(
-        |ctx: &CommandContext<CommandSource>| i32::from(get_string(ctx, "value").is_some()),
+        |ctx: &CommandContext<CommandSource>| {
+            success(i32::from(get_string(ctx, "value").is_some()))
+        },
     )));
     subject.register(literal("quote").then(argument("value", string()).executes(
         |ctx: &CommandContext<CommandSource>| {
-            i32::from(get_string(ctx, "value").as_deref() == Some("你好 世界"))
+            success(i32::from(
+                get_string(ctx, "value").as_deref() == Some("你好 世界"),
+            ))
         },
     )));
     subject
@@ -121,8 +133,8 @@ fn formats_error_context_on_character_boundaries() {
 #[test]
 fn suggests_after_prefixes_whose_lowercase_changes_utf8_length() {
     let mut subject = CommandDispatcher::<CommandSource>::new();
-    subject.register(literal("K").then(literal("next").executes(|_| 1)));
-    subject.register(literal("İ").then(literal("next").executes(|_| 1)));
+    subject.register(literal("K").then(literal("next").executes(|_| success(1))));
+    subject.register(literal("İ").then(literal("next").executes(|_| success(1))));
 
     for input in ["K ", "İ "] {
         let parse = subject.parse(StringReader::from(input), CommandSource {});

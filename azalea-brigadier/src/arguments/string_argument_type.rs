@@ -1,6 +1,6 @@
-use std::{any::Any, sync::Arc};
+use std::sync::Arc;
 
-use super::ArgumentType;
+use super::{ArgumentType, ParsedValue};
 use crate::{context::CommandContext, errors::CommandSyntaxError, string_reader::StringReader};
 
 pub enum StringArgument {
@@ -14,7 +14,7 @@ pub enum StringArgument {
 }
 
 impl ArgumentType for StringArgument {
-    fn parse(&self, reader: &mut StringReader) -> Result<Arc<dyn Any>, CommandSyntaxError> {
+    fn parse(&self, reader: &mut StringReader) -> Result<Arc<ParsedValue>, CommandSyntaxError> {
         let result = match self {
             StringArgument::SingleWord => reader.read_unquoted_string().to_owned(),
             StringArgument::QuotablePhrase => reader.read_string()?,

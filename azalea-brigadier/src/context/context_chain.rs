@@ -1,6 +1,6 @@
 use std::{rc::Rc, sync::Arc};
 
-use super::CommandContext;
+use super::CommandContextRef;
 #[cfg(feature = "async")]
 use crate::async_execution::{AsyncExecution, CommandFuture};
 use crate::{
@@ -9,15 +9,15 @@ use crate::{
 };
 
 pub struct ContextChain<S, R> {
-    modifiers: Vec<Rc<CommandContext<S, R>>>,
-    executable: Rc<CommandContext<S, R>>,
+    modifiers: Vec<CommandContextRef<S, R>>,
+    executable: CommandContextRef<S, R>,
     next_stage_cache: Option<Rc<ContextChain<S, R>>>,
 }
 
 impl<S, R: CommandResultTrait> ContextChain<S, R> {
     pub fn new(
-        modifiers: Vec<Rc<CommandContext<S, R>>>,
-        executable: Rc<CommandContext<S, R>>,
+        modifiers: Vec<CommandContextRef<S, R>>,
+        executable: CommandContextRef<S, R>,
     ) -> Self {
         if executable.command.is_none() {
             panic!("Last command in chain must be executable");
@@ -29,7 +29,7 @@ impl<S, R: CommandResultTrait> ContextChain<S, R> {
         }
     }
 
-    pub fn try_flatten(root_context: Rc<CommandContext<S, R>>) -> Option<Self> {
+    pub fn try_flatten(root_context: CommandContextRef<S, R>) -> Option<Self> {
         let mut modifiers = Vec::new();
         let mut current = root_context;
         loop {
@@ -49,7 +49,7 @@ impl<S, R: CommandResultTrait> ContextChain<S, R> {
     /// Flatten a context whose last node has either an asynchronous command or
     /// a synchronous command that can be run as part of an async execution.
     #[cfg(feature = "async")]
-    pub(crate) fn try_flatten_async(root_context: Rc<CommandContext<S, R>>) -> Option<Self> {
+    pub(crate) fn try_flatten_async(root_context: CommandContextRef<S, R>) -> Option<Self> {
         let mut modifiers = Vec::new();
         let mut current = root_context;
         loop {
@@ -72,7 +72,7 @@ impl<S, R: CommandResultTrait> ContextChain<S, R> {
     }
 
     pub fn run_modifier(
-        modifier: Rc<CommandContext<S, R>>,
+        modifier: CommandContextRef<S, R>,
         source: Arc<S>,
         result_consumer: &dyn ResultConsumer<S, R>,
         forked_mode: bool,
@@ -82,7 +82,7 @@ impl<S, R: CommandResultTrait> ContextChain<S, R> {
             return Ok(vec![source]);
         };
 
-        let context_to_use = Rc::new(modifier.copy_for(source));
+        let context_to_use = CommandContextRef::new(modifier.copy_for(source));
         let err = match (source_modifier)(&context_to_use) {
             Ok(res) => return Ok(res),
             Err(e) => CommandError::from(e),
@@ -97,12 +97,12 @@ impl<S, R: CommandResultTrait> ContextChain<S, R> {
 
     pub fn run_executable(
         &self,
-        executable: Rc<CommandContext<S, R>>,
+        executable: CommandContextRef<S, R>,
         source: Arc<S>,
         result_consumer: &dyn ResultConsumer<S, R>,
         forked_mode: bool,
     ) -> Result<R, CommandError> {
-        let context_to_use = Rc::new(executable.copy_for(source));
+        let context_to_use = CommandContextRef::new(executable.copy_for(source));
         let Some(command) = &executable.command else {
             unimplemented!();
         };
@@ -233,16 +233,16 @@ impl<S, R: CommandResultTrait> ContextChain<S, R> {
 
     #[cfg(feature = "async")]
     fn prepare_executable_async(
-        executable: Rc<CommandContext<S, R>>,
+        executable: CommandContextRef<S, R>,
         source: Arc<S>,
     ) -> CommandFuture<R>
     where
         S: Send + Sync + 'static,
         R: Send + 'static,
     {
-        let context = executable.copy_for(source);
+        let context = Arc::new(executable.copy_for(source));
         if let Some(command) = &executable.async_command {
-            return command(&context);
+            return command(context);
         }
 
         let command = executable
@@ -261,7 +261,7 @@ impl<S, R: CommandResultTrait> ContextChain<S, R> {
         }
     }
 
-    pub fn top_context(&self) -> Rc<CommandContext<S, R>> {
+    pub fn top_context(&self) -> CommandContextRef<S, R> {
         self.modifiers
             .first()
             .cloned()

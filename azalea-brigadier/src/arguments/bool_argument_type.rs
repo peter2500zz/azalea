@@ -1,6 +1,6 @@
-use std::{any::Any, sync::Arc};
+use std::sync::Arc;
 
-use super::ArgumentType;
+use super::{ArgumentType, ParsedValue};
 use crate::{
     context::CommandContext,
     errors::CommandSyntaxError,
@@ -12,7 +12,7 @@ use crate::{
 struct Boolean;
 
 impl ArgumentType for Boolean {
-    fn parse(&self, reader: &mut StringReader) -> Result<Arc<dyn Any>, CommandSyntaxError> {
+    fn parse(&self, reader: &mut StringReader) -> Result<Arc<ParsedValue>, CommandSyntaxError> {
         Ok(Arc::new(reader.read_boolean()?))
     }
 

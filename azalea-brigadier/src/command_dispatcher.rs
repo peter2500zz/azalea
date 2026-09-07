@@ -14,7 +14,7 @@ use parking_lot::RwLock;
 use crate::async_execution::AsyncExecution;
 use crate::{
     builder::argument_builder::ArgumentBuilder,
-    context::{CommandContextBuilder, ContextChain},
+    context::{CommandContextBuilder, CommandContextRef, ContextChain},
     errors::{BuiltInError, CommandError, CommandResultTrait, CommandSyntaxError},
     parse_results::ParseResults,
     result_consumer::{DefaultResultConsumer, ResultConsumer},
@@ -61,7 +61,7 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
     /// ```
     /// # use azalea_brigadier::prelude::*;
     /// # let mut subject = CommandDispatcher::<()>::new();
-    /// subject.register(literal("foo").executes(|_| 42));
+    /// subject.register(literal("foo").executes(|_| -> CommandResult { Ok(42) }));
     /// ```
     pub fn register(&mut self, node: ArgumentBuilder<S, R>) -> Arc<RwLock<CommandNode<S, R>>> {
         let build = Arc::new(RwLock::new(node.build()));
@@ -286,7 +286,7 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
         }
 
         let command = parse.reader.string();
-        let original = Rc::new(parse.context.build(command));
+        let original = CommandContextRef::new(parse.context.build(command));
         let flat_context = ContextChain::try_flatten(original.clone());
         let Some(flat_context) = flat_context else {
             self.consumer.on_command_complete(original, false, 0);
@@ -303,9 +303,11 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
     /// This method is synchronous: parsing, redirect modifiers, and the calls
     /// to command closures happen before it returns. The returned plan contains
     /// only `Send + 'static` futures and may be moved to a multi-threaded
-    /// executor. Command closures should copy owned values out of their
-    /// [`CommandContext`](crate::context::CommandContext) before constructing
-    /// their future.
+    /// executor. Asynchronous handlers receive an owned [`Arc`] to their
+    /// [`CommandContext`](crate::context::CommandContext), so the future may
+    /// retain the complete context across `.await` points.
+    ///
+    /// [`Arc`]: std::sync::Arc
     #[cfg(feature = "async")]
     pub fn prepare_async(
         &self,
@@ -341,7 +343,7 @@ impl<S, R: CommandResultTrait> CommandDispatcher<S, R> {
         }
 
         let command = parse.reader.string();
-        let original = Rc::new(parse.context.build(command));
+        let original = CommandContextRef::new(parse.context.build(command));
         let flat_context = ContextChain::try_flatten_async(original.clone());
         let Some(flat_context) = flat_context else {
             self.consumer.on_command_complete(original, false, 0);
